@@ -105,7 +105,7 @@ final class SenseCraftAPI {
             if let msg = decoded.msg, decoded.code != "0" {
                 throw SenseCraftAPIError.apiError(msg)
             }
-            let items = decoded.data?.list ?? []
+            let items = decoded.data ?? []
             return items.map { item in
                 SenseCraftDevice(
                     deviceEui: item.deviceEui,
@@ -141,15 +141,16 @@ final class SenseCraftAPI {
                 throw SenseCraftAPIError.apiError(msg)
             }
 
-            let measurements = decoded.data ?? []
+            // data is array of channels, each with a points array
+            let allPoints = (decoded.data ?? []).flatMap { $0.points ?? [] }
             var moisture: Double? = nil
             var tempC: Double? = nil
 
-            for m in measurements {
-                if m.measurementId == moistureMeasurementID, let valueStr = m.measurementValue {
-                    moisture = Double(valueStr)
-                } else if m.measurementId == tempMeasurementID, let valueStr = m.measurementValue {
-                    tempC = Double(valueStr)
+            for point in allPoints {
+                if point.measurementId == moistureMeasurementID {
+                    moisture = point.measurementValue
+                } else if point.measurementId == tempMeasurementID {
+                    tempC = point.measurementValue
                 }
             }
 
