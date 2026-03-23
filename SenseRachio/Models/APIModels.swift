@@ -48,8 +48,13 @@ struct RachioPersonInfoResponse: Codable {
     let email: String?
 }
 
-struct RachioDeviceListResponse: Codable {
-    // The /person/{id}/device endpoint returns a JSON array directly
+struct RachioPersonResponse: Codable {
+    let id: String
+    let devices: [RachioPersonDeviceEntry]?
+}
+
+struct RachioPersonDeviceEntry: Codable {
+    let id: String
 }
 
 struct RachioZoneStartRequest: Codable {

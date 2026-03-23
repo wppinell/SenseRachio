@@ -69,7 +69,7 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		A1000000000000000000000B /* SenseRachio */ = {
+		A1000000000000000000000B = {
 			isa = PBXGroup;
 			children = (
 				A10000000000000000000023D /* SenseRachio */,
@@ -230,7 +230,7 @@
 				en,
 				Base,
 			);
-			mainGroup = A1000000000000000000000B /* SenseRachio */;
+			mainGroup = A1000000000000000000000B;
 			productRefGroup = A1000000000000000000000C /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -407,7 +407,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = WQ4HK8NXS9;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = SenseRachio/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
@@ -431,7 +431,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = WQ4HK8NXS9;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = SenseRachio/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
@@ -470,7 +470,6 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
-
 	};
 	rootObject = A1000000000000000000000A /* Project object */;
 }

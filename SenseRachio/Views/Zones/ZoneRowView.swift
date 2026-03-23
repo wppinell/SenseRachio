@@ -12,7 +12,9 @@ struct ZoneRowView: View {
     private let durations = [5, 10, 15, 20, 30]
 
     var body: some View {
-        HStack {
+        HStack(spacing: 10) {
+            zoneImage
+
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
                     Text(zone.name)
@@ -27,33 +29,33 @@ struct ZoneRowView: View {
                             .clipShape(Capsule())
                     }
                 }
-                Text(zone.id)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                if let subtitle = lastWateredSubtitle {
+                    Text(subtitle)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
             }
 
             Spacer()
 
-            HStack(spacing: 8) {
-                if isActive {
-                    Button(role: .destructive) {
-                        onStop()
-                    } label: {
-                        Label("Stop", systemImage: "stop.fill")
-                            .font(.caption.bold())
-                    }
-                    .buttonStyle(.bordered)
-                    .tint(.red)
-                } else {
-                    Button {
-                        showDurationSheet = true
-                    } label: {
-                        Label("Run", systemImage: "play.fill")
-                            .font(.caption.bold())
-                    }
-                    .buttonStyle(.bordered)
-                    .tint(.accentColor)
+            if isActive {
+                Button(role: .destructive) {
+                    onStop()
+                } label: {
+                    Label("Stop", systemImage: "stop.fill")
+                        .font(.caption.bold())
                 }
+                .buttonStyle(.bordered)
+                .tint(.red)
+            } else {
+                Button {
+                    showDurationSheet = true
+                } label: {
+                    Label("Run", systemImage: "play.fill")
+                        .font(.caption.bold())
+                }
+                .buttonStyle(.bordered)
+                .tint(.accentColor)
             }
         }
         .padding(.vertical, 4)
@@ -69,6 +71,54 @@ struct ZoneRowView: View {
             }
             .presentationDetents([.height(320)])
         }
+    }
+
+    // MARK: - Zone Image
+
+    @ViewBuilder
+    private var zoneImage: some View {
+        if let urlString = zone.imageUrl, let url = URL(string: urlString) {
+            AsyncImage(url: url) { phase in
+                switch phase {
+                case .success(let image):
+                    image
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 36, height: 36)
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                default:
+                    zonePlaceholder
+                }
+            }
+        } else {
+            zonePlaceholder
+        }
+    }
+
+    private var zonePlaceholder: some View {
+        Image(systemName: "drop.fill")
+            .font(.system(size: 16))
+            .foregroundStyle(.secondary)
+            .frame(width: 36, height: 36)
+            .background(Color.secondary.opacity(0.12))
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+    }
+
+    // MARK: - Last Watered
+
+    private var lastWateredSubtitle: String? {
+        guard let epochMs = zone.lastWateredDate else { return nil }
+        let date = Date(timeIntervalSince1970: Double(epochMs) / 1000)
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .full
+        let relative = formatter.localizedString(for: date, relativeTo: Date())
+        if let duration = zone.lastWateredDuration {
+            let mins = duration / 60
+            let secs = duration % 60
+            let durationStr = mins > 0 ? "\(mins)m \(secs)s" : "\(secs)s"
+            return "Watered \(relative) for \(durationStr)"
+        }
+        return "Watered \(relative)"
     }
 }
 
@@ -127,13 +177,13 @@ struct DurationPickerSheet: View {
 #Preview {
     List {
         ZoneRowView(
-            zone: RachioZone(id: "zone-1", name: "Front Lawn", enabled: true),
+            zone: RachioZone(id: "zone-1", name: "Front Lawn", enabled: true, zoneNumber: 1, lastWateredDate: Int(Date().addingTimeInterval(-172800).timeIntervalSince1970 * 1000), lastWateredDuration: 600, imageUrl: nil),
             isActive: false,
             onStart: { _ in },
             onStop: {}
         )
         ZoneRowView(
-            zone: RachioZone(id: "zone-2", name: "Back Garden", enabled: true),
+            zone: RachioZone(id: "zone-2", name: "Tomato Garden", enabled: true, zoneNumber: 4, lastWateredDate: nil, lastWateredDuration: nil, imageUrl: nil),
             isActive: true,
             onStart: { _ in },
             onStop: {}

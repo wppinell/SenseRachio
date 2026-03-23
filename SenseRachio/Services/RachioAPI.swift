@@ -6,11 +6,17 @@ struct RachioZone: Codable, Identifiable {
     let id: String
     let name: String
     let enabled: Bool
+    let zoneNumber: Int?
+    let lastWateredDate: Int?      // epoch milliseconds
+    let lastWateredDuration: Int?  // seconds
+    let imageUrl: String?
 }
 
 struct RachioDevice: Codable, Identifiable {
     let id: String
     let name: String
+    let status: String?
+    let on: Bool?
     let zones: [RachioZone]
 }
 
@@ -101,11 +107,31 @@ final class RachioAPI {
         }
     }
 
-    // MARK: - Get Devices
+    // MARK: - Discover Device IDs via /person/{personId}
 
-    func getDevices() async throws -> [RachioDevice] {
-        let personId = try await getPersonId()
-        let request = try makeRequest(path: "/person/\(personId)/device")
+    private func fetchDeviceIds(personId: String) async throws -> [String] {
+        let request = try makeRequest(path: "/person/\(personId)")
+        let (data, response) = try await session.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw RachioAPIError.invalidResponse
+        }
+        guard httpResponse.statusCode == 200 else {
+            throw RachioAPIError.httpError(httpResponse.statusCode)
+        }
+
+        let person = try JSONDecoder().decode(RachioPersonResponse.self, from: data)
+        let ids = (person.devices ?? []).map(\.id)
+        guard !ids.isEmpty else {
+            throw RachioAPIError.apiError("No devices found in person response.")
+        }
+        return ids
+    }
+
+    // MARK: - Get Single Device
+
+    private func fetchDevice(id: String) async throws -> RachioDevice {
+        let request = try makeRequest(path: "/device/\(id)")
         let (data, response) = try await session.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
@@ -116,13 +142,36 @@ final class RachioAPI {
         }
 
         do {
-            let decoder = JSONDecoder()
-            // The API returns an array of devices directly
-            let devices = try decoder.decode([RachioDevice].self, from: data)
-            return devices
+            return try JSONDecoder().decode(RachioDevice.self, from: data)
         } catch {
             throw RachioAPIError.decodingError(error)
         }
+    }
+
+    // MARK: - Get Devices
+
+    func getDevices() async throws -> [RachioDevice] {
+        let personId = try await getPersonId()
+
+        // Discover device IDs via /person/{personId}, fall back to cached Keychain value
+        let deviceIds: [String]
+        if let ids = try? await fetchDeviceIds(personId: personId), !ids.isEmpty {
+            // Cache for future resilience
+            try? KeychainService.shared.save(ids.joined(separator: ","), forKey: KeychainKey.rachioDeviceIds)
+            deviceIds = ids
+        } else if let cached = KeychainService.shared.load(forKey: KeychainKey.rachioDeviceIds),
+                  !cached.isEmpty {
+            deviceIds = cached.split(separator: ",").map(String.init)
+        } else {
+            throw RachioAPIError.apiError("Could not discover Rachio devices. Try saving your API key and testing the connection again.")
+        }
+
+        var devices: [RachioDevice] = []
+        for id in deviceIds {
+            let device = try await fetchDevice(id: id)
+            devices.append(device)
+        }
+        return devices
     }
 
     // MARK: - Start Zone

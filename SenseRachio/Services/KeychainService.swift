@@ -7,6 +7,7 @@ enum KeychainKey {
     static let senseCraftAPIKey = "sensecraft_api_key"
     static let senseCraftAPISecret = "sensecraft_api_secret"
     static let rachioAPIKey = "rachio_api_key"
+    static let rachioDeviceIds = "rachio_device_ids"
 }
 
 // MARK: - KeychainService
