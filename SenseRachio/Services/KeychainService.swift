@@ -58,7 +58,7 @@ final class KeychainService {
             kSecAttrAccount as String: key,
             kSecAttrService as String: Bundle.main.bundleIdentifier ?? "com.senserachio.app",
             kSecValueData as String: data,
-            kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly
+            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
         ]
 
         let status = SecItemAdd(addQuery as CFDictionary, nil)

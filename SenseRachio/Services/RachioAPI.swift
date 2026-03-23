@@ -152,6 +152,7 @@ final class RachioAPI {
 
     func getDevices() async throws -> [RachioDevice] {
         let personId = try await getPersonId()
+        print("[RachioAPI] personId: \(personId)")
 
         // Discover device IDs via /person/{personId}, fall back to cached Keychain value
         let deviceIds: [String]
@@ -165,10 +166,12 @@ final class RachioAPI {
         } else {
             throw RachioAPIError.apiError("Could not discover Rachio devices. Try saving your API key and testing the connection again.")
         }
+        print("[RachioAPI] deviceIds: \(deviceIds)")
 
         var devices: [RachioDevice] = []
         for id in deviceIds {
             let device = try await fetchDevice(id: id)
+            print("[RachioAPI] fetched device: \(device.name)")
             devices.append(device)
         }
         return devices

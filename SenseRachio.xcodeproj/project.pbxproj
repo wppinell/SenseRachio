@@ -55,6 +55,7 @@
 		A100000000000000000000238 /* BackgroundRefreshManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundRefreshManager.swift; sourceTree = "<group>"; };
 		A10000000000000000000023A /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A10000000000000000000023C /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		A10000000000000000000248 /* SenseRachio.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = SenseRachio.entitlements; sourceTree = "<group>"; };
 		A100000000000000000000247 /* SenseRachio.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SenseRachio.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -92,6 +93,7 @@
 				A100000000000000000000212 /* ContentView.swift */,
 				A10000000000000000000023A /* Assets.xcassets */,
 				A10000000000000000000023C /* Info.plist */,
+				A10000000000000000000248 /* SenseRachio.entitlements */,
 				A10000000000000000000023E /* Models */,
 				A10000000000000000000023F /* Services */,
 				A100000000000000000000240 /* ViewModels */,
@@ -405,6 +407,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = SenseRachio/SenseRachio.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = WQ4HK8NXS9;
@@ -429,6 +432,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = SenseRachio/SenseRachio.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = WQ4HK8NXS9;

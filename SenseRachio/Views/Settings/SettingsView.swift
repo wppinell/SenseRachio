@@ -266,7 +266,7 @@ struct SettingsView: View {
             senseCraftTestResult = "Connected! Found \(devices.count) device(s)."
             senseCraftTestSuccess = true
         } catch {
-            senseCraftTestResult = error.localizedDescription
+            senseCraftTestResult = friendlyErrorMessage(for: error)
             senseCraftTestSuccess = false
         }
         isTestingSenseCraft = false
@@ -285,10 +285,37 @@ struct SettingsView: View {
             rachioTestResult = "Connected! Found \(devices.count) device(s)."
             rachioTestSuccess = true
         } catch {
-            rachioTestResult = error.localizedDescription
+            rachioTestResult = friendlyErrorMessage(for: error)
             rachioTestSuccess = false
         }
         isTestingRachio = false
+    }
+
+    // MARK: - Error Helpers
+
+    private func friendlyErrorMessage(for error: Error) -> String {
+        let description = error.localizedDescription.lowercased()
+        if description.contains("missingcredentials") || description.contains("credentials not found") {
+            return "No API key entered"
+        }
+        if let urlError = error as? URLError {
+            _ = urlError
+            return "Network error — check your connection"
+        }
+        if description.contains("http 401") || description.contains("returned http 401") {
+            return "Invalid API key — check your credentials"
+        }
+        if description.contains("http 404") || description.contains("returned http 404") {
+            return "Service not found — please report this bug"
+        }
+        // Check RachioAPIError / SenseCraftAPIError http codes via pattern
+        if description.contains("401") {
+            return "Invalid API key — check your credentials"
+        }
+        if description.contains("404") {
+            return "Service not found — please report this bug"
+        }
+        return error.localizedDescription
     }
 }
 
