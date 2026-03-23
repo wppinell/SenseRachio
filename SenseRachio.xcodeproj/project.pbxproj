@@ -1,0 +1,476 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		A100000000000000000000211 /* SenseRachioApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000210 /* SenseRachioApp.swift */; };
+		A100000000000000000000213 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000212 /* ContentView.swift */; };
+		A100000000000000000000215 /* SwiftDataModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000214 /* SwiftDataModels.swift */; };
+		A100000000000000000000217 /* APIModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000216 /* APIModels.swift */; };
+		A100000000000000000000219 /* KeychainService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000218 /* KeychainService.swift */; };
+		A10000000000000000000021B /* SenseCraftAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000021A /* SenseCraftAPI.swift */; };
+		A10000000000000000000021D /* RachioAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000021C /* RachioAPI.swift */; };
+		A10000000000000000000021F /* NotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000021E /* NotificationService.swift */; };
+		A100000000000000000000221 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000220 /* AppState.swift */; };
+		A100000000000000000000223 /* DashboardViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000222 /* DashboardViewModel.swift */; };
+		A100000000000000000000225 /* SensorsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000224 /* SensorsViewModel.swift */; };
+		A100000000000000000000227 /* ZonesViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000226 /* ZonesViewModel.swift */; };
+		A100000000000000000000229 /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000228 /* MainTabView.swift */; };
+		A10000000000000000000022B /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000022A /* DashboardView.swift */; };
+		A10000000000000000000022D /* SensorsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000022C /* SensorsView.swift */; };
+		A10000000000000000000022F /* SensorRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000022E /* SensorRowView.swift */; };
+		A100000000000000000000231 /* ZonesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000230 /* ZonesView.swift */; };
+		A100000000000000000000233 /* ZoneRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000232 /* ZoneRowView.swift */; };
+		A100000000000000000000235 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000234 /* SettingsView.swift */; };
+		A100000000000000000000237 /* SensorZoneLinkView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000236 /* SensorZoneLinkView.swift */; };
+		A100000000000000000000239 /* BackgroundRefreshManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000238 /* BackgroundRefreshManager.swift */; };
+		A10000000000000000000023B /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000023A /* Assets.xcassets */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		A100000000000000000000210 /* SenseRachioApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SenseRachioApp.swift; sourceTree = "<group>"; };
+		A100000000000000000000212 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		A100000000000000000000214 /* SwiftDataModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftDataModels.swift; sourceTree = "<group>"; };
+		A100000000000000000000216 /* APIModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIModels.swift; sourceTree = "<group>"; };
+		A100000000000000000000218 /* KeychainService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainService.swift; sourceTree = "<group>"; };
+		A10000000000000000000021A /* SenseCraftAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SenseCraftAPI.swift; sourceTree = "<group>"; };
+		A10000000000000000000021C /* RachioAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RachioAPI.swift; sourceTree = "<group>"; };
+		A10000000000000000000021E /* NotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationService.swift; sourceTree = "<group>"; };
+		A100000000000000000000220 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
+		A100000000000000000000222 /* DashboardViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardViewModel.swift; sourceTree = "<group>"; };
+		A100000000000000000000224 /* SensorsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SensorsViewModel.swift; sourceTree = "<group>"; };
+		A100000000000000000000226 /* ZonesViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZonesViewModel.swift; sourceTree = "<group>"; };
+		A100000000000000000000228 /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
+		A10000000000000000000022A /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
+		A10000000000000000000022C /* SensorsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SensorsView.swift; sourceTree = "<group>"; };
+		A10000000000000000000022E /* SensorRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SensorRowView.swift; sourceTree = "<group>"; };
+		A100000000000000000000230 /* ZonesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZonesView.swift; sourceTree = "<group>"; };
+		A100000000000000000000232 /* ZoneRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZoneRowView.swift; sourceTree = "<group>"; };
+		A100000000000000000000234 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		A100000000000000000000236 /* SensorZoneLinkView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SensorZoneLinkView.swift; sourceTree = "<group>"; };
+		A100000000000000000000238 /* BackgroundRefreshManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundRefreshManager.swift; sourceTree = "<group>"; };
+		A10000000000000000000023A /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		A10000000000000000000023C /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		A100000000000000000000247 /* SenseRachio.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SenseRachio.app; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		A100000000000000000000200 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		A1000000000000000000000B /* SenseRachio */ = {
+			isa = PBXGroup;
+			children = (
+				A10000000000000000000023D /* SenseRachio */,
+				A1000000000000000000000C /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		A1000000000000000000000C /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				A100000000000000000000247 /* SenseRachio.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		A10000000000000000000023D /* SenseRachio */ = {
+			isa = PBXGroup;
+			children = (
+				A100000000000000000000210 /* SenseRachioApp.swift */,
+				A100000000000000000000212 /* ContentView.swift */,
+				A10000000000000000000023A /* Assets.xcassets */,
+				A10000000000000000000023C /* Info.plist */,
+				A10000000000000000000023E /* Models */,
+				A10000000000000000000023F /* Services */,
+				A100000000000000000000240 /* ViewModels */,
+				A100000000000000000000241 /* Views */,
+				A100000000000000000000246 /* Background */,
+			);
+			path = SenseRachio;
+			sourceTree = "<group>";
+		};
+		A10000000000000000000023E /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				A100000000000000000000214 /* SwiftDataModels.swift */,
+				A100000000000000000000216 /* APIModels.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		A10000000000000000000023F /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				A100000000000000000000218 /* KeychainService.swift */,
+				A10000000000000000000021A /* SenseCraftAPI.swift */,
+				A10000000000000000000021C /* RachioAPI.swift */,
+				A10000000000000000000021E /* NotificationService.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		A100000000000000000000240 /* ViewModels */ = {
+			isa = PBXGroup;
+			children = (
+				A100000000000000000000220 /* AppState.swift */,
+				A100000000000000000000222 /* DashboardViewModel.swift */,
+				A100000000000000000000224 /* SensorsViewModel.swift */,
+				A100000000000000000000226 /* ZonesViewModel.swift */,
+			);
+			path = ViewModels;
+			sourceTree = "<group>";
+		};
+		A100000000000000000000241 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				A100000000000000000000228 /* MainTabView.swift */,
+				A100000000000000000000242 /* Dashboard */,
+				A100000000000000000000243 /* Sensors */,
+				A100000000000000000000244 /* Zones */,
+				A100000000000000000000245 /* Settings */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		A100000000000000000000242 /* Dashboard */ = {
+			isa = PBXGroup;
+			children = (
+				A10000000000000000000022A /* DashboardView.swift */,
+			);
+			path = Dashboard;
+			sourceTree = "<group>";
+		};
+		A100000000000000000000243 /* Sensors */ = {
+			isa = PBXGroup;
+			children = (
+				A10000000000000000000022C /* SensorsView.swift */,
+				A10000000000000000000022E /* SensorRowView.swift */,
+			);
+			path = Sensors;
+			sourceTree = "<group>";
+		};
+		A100000000000000000000244 /* Zones */ = {
+			isa = PBXGroup;
+			children = (
+				A100000000000000000000230 /* ZonesView.swift */,
+				A100000000000000000000232 /* ZoneRowView.swift */,
+			);
+			path = Zones;
+			sourceTree = "<group>";
+		};
+		A100000000000000000000245 /* Settings */ = {
+			isa = PBXGroup;
+			children = (
+				A100000000000000000000234 /* SettingsView.swift */,
+				A100000000000000000000236 /* SensorZoneLinkView.swift */,
+			);
+			path = Settings;
+			sourceTree = "<group>";
+		};
+		A100000000000000000000246 /* Background */ = {
+			isa = PBXGroup;
+			children = (
+				A100000000000000000000238 /* BackgroundRefreshManager.swift */,
+			);
+			path = Background;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		A1000000000000000000000D /* SenseRachio */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A1000000000000000000000F /* Build configuration list for PBXNativeTarget "SenseRachio" */;
+			buildPhases = (
+				A1000000000000000000001E /* Sources */,
+				A1000000000000000000001F /* Resources */,
+				A100000000000000000000200 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = SenseRachio;
+			productName = SenseRachio;
+			productReference = A100000000000000000000247 /* SenseRachio.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		A1000000000000000000000A /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1500;
+				LastUpgradeCheck = 1500;
+				TargetAttributes = {
+					A1000000000000000000000D = {
+						CreatedOnToolsVersion = 15.0;
+					};
+				};
+			};
+			buildConfigurationList = A1000000000000000000000E /* Build configuration list for PBXProject "SenseRachio" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = A1000000000000000000000B /* SenseRachio */;
+			productRefGroup = A1000000000000000000000C /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				A1000000000000000000000D /* SenseRachio */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		A1000000000000000000001F /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A10000000000000000000023B /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		A1000000000000000000001E /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A100000000000000000000211 /* SenseRachioApp.swift in Sources */,
+				A100000000000000000000213 /* ContentView.swift in Sources */,
+				A100000000000000000000215 /* SwiftDataModels.swift in Sources */,
+				A100000000000000000000217 /* APIModels.swift in Sources */,
+				A100000000000000000000219 /* KeychainService.swift in Sources */,
+				A10000000000000000000021B /* SenseCraftAPI.swift in Sources */,
+				A10000000000000000000021D /* RachioAPI.swift in Sources */,
+				A10000000000000000000021F /* NotificationService.swift in Sources */,
+				A100000000000000000000221 /* AppState.swift in Sources */,
+				A100000000000000000000223 /* DashboardViewModel.swift in Sources */,
+				A100000000000000000000225 /* SensorsViewModel.swift in Sources */,
+				A100000000000000000000227 /* ZonesViewModel.swift in Sources */,
+				A100000000000000000000229 /* MainTabView.swift in Sources */,
+				A10000000000000000000022B /* DashboardView.swift in Sources */,
+				A10000000000000000000022D /* SensorsView.swift in Sources */,
+				A10000000000000000000022F /* SensorRowView.swift in Sources */,
+				A100000000000000000000231 /* ZonesView.swift in Sources */,
+				A100000000000000000000233 /* ZoneRowView.swift in Sources */,
+				A100000000000000000000235 /* SettingsView.swift in Sources */,
+				A100000000000000000000237 /* SensorZoneLinkView.swift in Sources */,
+				A100000000000000000000239 /* BackgroundRefreshManager.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		A1000000000000000000001A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		A1000000000000000000001B /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_FAST_MATH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		A1000000000000000000001C /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = SenseRachio/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.senserachio.app;
+				PRODUCT_NAME = SenseRachio;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		A1000000000000000000001D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = SenseRachio/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.senserachio.app;
+				PRODUCT_NAME = SenseRachio;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		A1000000000000000000000E /* Build configuration list for PBXProject "SenseRachio" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A1000000000000000000001A /* Debug */,
+				A1000000000000000000001B /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A1000000000000000000000F /* Build configuration list for PBXNativeTarget "SenseRachio" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A1000000000000000000001C /* Debug */,
+				A1000000000000000000001D /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+	};
+	rootObject = A1000000000000000000000A /* Project object */;
+}
