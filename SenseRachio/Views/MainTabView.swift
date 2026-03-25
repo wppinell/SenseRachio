@@ -11,18 +11,11 @@ struct MainTabView: View {
     var body: some View {
         ZStack(alignment: .top) {
             TabView {
-                DashboardView()
-                    .tabItem { Label("Home", systemImage: "square.grid.2x2.fill") }
+                SensorsView()
+                    .tabItem { Label("Sensors", systemImage: "sensor.fill") }
 
-                if appState.hasSenseCraftCredentials {
-                    SensorsView()
-                        .tabItem { Label("Sensors", systemImage: "sensor.fill") }
-                }
-
-                if appState.hasRachioCredentials {
-                    ZonesView()
-                        .tabItem { Label("Zones", systemImage: "drop.fill") }
-                }
+                ZonesView()
+                    .tabItem { Label("Zones", systemImage: "drop.fill") }
 
                 SettingsView(isOnboarding: false)
                     .tabItem { Label("Settings", systemImage: "gearshape.fill") }
