@@ -4,77 +4,115 @@ import SwiftData
 struct SensorsView: View {
     @Environment(\.modelContext) private var modelContext
     @State private var viewModel = SensorsViewModel()
+    @Query(sort: \SensorGroup.sortOrder) private var groups: [SensorGroup]
+    @State private var selectedGroupId: String? = nil
+
+    private var filteredSensors: [SensorConfig] {
+        guard let groupId = selectedGroupId else { return viewModel.sensors }
+        return viewModel.sensors.filter { $0.groupId == groupId }
+    }
 
     var body: some View {
         NavigationStack {
             Group {
                 if viewModel.isLoading {
-                    ProgressView("Loading sensors...")
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else if viewModel.sensors.isEmpty {
-                    emptySensorsView
+                    ScrollView {
+                        DSLoadingState(label: "Loading sensors…")
+                            .padding(DS.Spacing.lg)
+                    }
+                    .dsBackground()
                 } else {
-                    sensorsList
+                    mainContent
                 }
             }
             .navigationTitle("Sensors")
-            .overlay(alignment: .top) {
-                if let message = viewModel.errorMessage {
-                    InlineBanner(message: message, color: .red)
-                        .padding(.top, 4)
-                }
-            }
+            .navigationBarTitleDisplayMode(.large)
         }
         .task {
             await viewModel.loadSensors(modelContext: modelContext)
         }
     }
 
-    // MARK: - Sensors List
+    private var mainContent: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                // Error
+                if let message = viewModel.errorMessage {
+                    DSInlineBanner(message: message, style: .error)
+                        .padding(.horizontal, DS.Spacing.lg)
+                        .padding(.top, DS.Spacing.lg)
+                }
 
-    private var sensorsList: some View {
-        List {
-            if let message = viewModel.errorMessage {
-                InlineBanner(message: message, color: .red)
-                    .listRowBackground(Color.clear)
-                    .listRowInsets(EdgeInsets())
-            }
+                // Group filter chips
+                if !groups.isEmpty {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: DS.Spacing.sm) {
+                            GroupChip(label: "All", isSelected: selectedGroupId == nil) {
+                                selectedGroupId = nil
+                            }
+                            ForEach(groups) { group in
+                                GroupChip(label: group.name, isSelected: selectedGroupId == group.id) {
+                                    selectedGroupId = selectedGroupId == group.id ? nil : group.id
+                                }
+                            }
+                        }
+                        .padding(.horizontal, DS.Spacing.lg)
+                    }
+                    .padding(.vertical, DS.Spacing.md)
+                }
 
-            ForEach(viewModel.sensors) { sensor in
-                SensorRowView(
-                    sensor: sensor,
-                    reading: viewModel.readings[sensor.eui]
-                )
+                // Sensor count
+                DSSectionHeader(title: "Sensors", count: filteredSensors.count)
+
+                if filteredSensors.isEmpty {
+                    DSEmptyState(
+                        icon: "sensor.fill",
+                        title: "No Sensors Found",
+                        message: "No devices were found in your SenseCraft account. Make sure your sensors are registered and active.",
+                        action: { Task { await viewModel.loadSensors(modelContext: modelContext) } },
+                        actionLabel: "Refresh"
+                    )
+                    .padding(.horizontal, DS.Spacing.lg)
+                } else {
+                    LazyVStack(spacing: DS.Spacing.sm) {
+                        ForEach(filteredSensors) { sensor in
+                            SensorRowView(
+                                sensor: sensor,
+                                reading: viewModel.readings[sensor.eui]
+                            )
+                        }
+                    }
+                    .padding(.horizontal, DS.Spacing.lg)
+                }
+
+                Spacer(minLength: DS.Spacing.xxl)
             }
         }
-        .listStyle(.insetGrouped)
+        .dsBackground()
         .refreshable {
             await viewModel.loadSensors(modelContext: modelContext)
         }
     }
+}
 
-    // MARK: - Empty State
+// MARK: - Group Filter Chip
 
-    private var emptySensorsView: some View {
-        VStack(spacing: 20) {
-            Image(systemName: "sensor.fill")
-                .font(.system(size: 60))
-                .foregroundStyle(.secondary)
-            Text("No Sensors Found")
-                .font(.title2.bold())
-            Text("No devices were found in your SenseCraft account. Make sure your sensors are registered and active.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 40)
-            Button("Refresh") {
-                Task { await viewModel.loadSensors(modelContext: modelContext) }
-            }
-            .buttonStyle(.bordered)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .refreshable {
-            await viewModel.loadSensors(modelContext: modelContext)
+private struct GroupChip: View {
+    let label: String
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(label)
+                .font(DS.Font.label)
+                .fontWeight(.semibold)
+                .foregroundStyle(isSelected ? .white : DS.Color.textSecondary)
+                .padding(.horizontal, DS.Spacing.md)
+                .padding(.vertical, DS.Spacing.xs + 2)
+                .background(isSelected ? DS.Color.accent : DS.Color.card)
+                .clipShape(Capsule())
+                .shadow(color: isSelected ? DS.Color.accent.opacity(0.3) : DS.Color.cardShadow, radius: 2)
         }
     }
 }

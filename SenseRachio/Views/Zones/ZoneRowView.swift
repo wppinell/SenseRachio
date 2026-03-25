@@ -8,58 +8,65 @@ struct ZoneRowView: View {
 
     @State private var showDurationSheet = false
     @State private var selectedDuration = 10
+    @AppStorage(AppStorageKey.durationUnit) private var durationUnit = "minutes"
 
     private let durations = [5, 10, 15, 20, 30]
 
     var body: some View {
-        HStack(spacing: 10) {
-            zoneImage
+        HStack(spacing: DS.Spacing.md) {
+            // Zone number badge
+            ZStack {
+                RoundedRectangle(cornerRadius: DS.Radius.badge)
+                    .fill(isActive ? DS.Color.online : DS.Color.accent.opacity(0.12))
+                Text("\(zone.zoneNumber)")
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .foregroundStyle(isActive ? .white : DS.Color.accent)
+            }
+            .frame(width: 36, height: 36)
 
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 6) {
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: DS.Spacing.sm) {
                     Text(zone.name)
-                        .font(.subheadline.bold())
+                        .font(DS.Font.cardTitle)
+                        .foregroundStyle(DS.Color.textPrimary)
                     if isActive {
-                        Label("Running", systemImage: "drop.fill")
-                            .font(.caption2.bold())
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(Color.blue.gradient)
-                            .clipShape(Capsule())
+                        DSBadge(text: "Running", color: DS.Color.online, small: true)
                     }
                 }
                 if let subtitle = lastWateredSubtitle {
                     Text(subtitle)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+                        .font(DS.Font.caption)
+                        .foregroundStyle(DS.Color.textSecondary)
                 }
             }
 
             Spacer()
 
             if isActive {
-                Button(role: .destructive) {
-                    onStop()
-                } label: {
+                Button(action: onStop) {
                     Label("Stop", systemImage: "stop.fill")
-                        .font(.caption.bold())
+                        .font(DS.Font.label)
+                        .fontWeight(.semibold)
                 }
                 .buttonStyle(.bordered)
-                .tint(.red)
+                .tint(DS.Color.error)
+                .controlSize(.small)
             } else {
                 Button {
                     showDurationSheet = true
                 } label: {
                     Label("Run", systemImage: "play.fill")
-                        .font(.caption.bold())
+                        .font(DS.Font.label)
+                        .fontWeight(.semibold)
                 }
                 .buttonStyle(.bordered)
-                .tint(.accentColor)
+                .tint(DS.Color.accent)
+                .controlSize(.small)
             }
         }
-        .padding(.vertical, 4)
-        .listRowBackground(isActive ? Color.blue.opacity(0.08) : Color.clear)
+        .padding(DS.Spacing.lg)
+        .background(isActive ? DS.Color.online.opacity(0.06) : DS.Color.card)
+        .dsCard()
         .sheet(isPresented: $showDurationSheet) {
             DurationPickerSheet(
                 zoneName: zone.name,
@@ -69,56 +76,34 @@ struct ZoneRowView: View {
                 onStart(duration * 60)
                 showDurationSheet = false
             }
-            .presentationDetents([.height(320)])
+            .presentationDetents([.height(340)])
         }
     }
-
-    // MARK: - Zone Image
-
-    @ViewBuilder
-    private var zoneImage: some View {
-        if let urlString = zone.imageUrl, let url = URL(string: urlString) {
-            AsyncImage(url: url) { phase in
-                switch phase {
-                case .success(let image):
-                    image
-                        .resizable()
-                        .scaledToFill()
-                        .frame(width: 36, height: 36)
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                default:
-                    zonePlaceholder
-                }
-            }
-        } else {
-            zonePlaceholder
-        }
-    }
-
-    private var zonePlaceholder: some View {
-        Image(systemName: "drop.fill")
-            .font(.system(size: 16))
-            .foregroundStyle(.secondary)
-            .frame(width: 36, height: 36)
-            .background(Color.secondary.opacity(0.12))
-            .clipShape(RoundedRectangle(cornerRadius: 8))
-    }
-
-    // MARK: - Last Watered
 
     private var lastWateredSubtitle: String? {
         guard let epochMs = zone.lastWateredDate else { return nil }
         let date = Date(timeIntervalSince1970: Double(epochMs) / 1000)
         let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .full
+        formatter.unitsStyle = .abbreviated
         let relative = formatter.localizedString(for: date, relativeTo: Date())
-        if let duration = zone.lastWateredDuration {
-            let mins = duration / 60
-            let secs = duration % 60
-            let durationStr = mins > 0 ? "\(mins)m \(secs)s" : "\(secs)s"
-            return "Watered \(relative) for \(durationStr)"
+        if let dur = zone.lastWateredDuration {
+            return "Watered \(relative) · \(formatDuration(dur))"
         }
         return "Watered \(relative)"
+    }
+
+    private func formatDuration(_ seconds: Int) -> String {
+        switch durationUnit {
+        case "seconds":       return "\(seconds)s"
+        case "hoursMinutes":
+            let h = seconds / 3600
+            let m = (seconds % 3600) / 60
+            return h > 0 ? "\(h)h \(m)m" : "\(m)m"
+        default:
+            let m = seconds / 60
+            let s = seconds % 60
+            return s > 0 ? "\(m)m \(s)s" : "\(m)m"
+        }
     }
 }
 
@@ -131,62 +116,69 @@ struct DurationPickerSheet: View {
     let onConfirm: (Int) -> Void
 
     var body: some View {
-        VStack(spacing: 20) {
-            Text("Run \(zoneName)")
-                .font(.title3.bold())
-                .padding(.top, 24)
+        VStack(spacing: DS.Spacing.xl) {
+            // Handle
+            Capsule()
+                .fill(DS.Color.separator)
+                .frame(width: 36, height: 4)
+                .padding(.top, DS.Spacing.md)
 
-            Text("Select duration")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+            VStack(spacing: DS.Spacing.xs) {
+                Text("Run \(zoneName)")
+                    .font(DS.Font.cardTitle)
+                    .foregroundStyle(DS.Color.textPrimary)
+                Text("Select duration")
+                    .font(DS.Font.caption)
+                    .foregroundStyle(DS.Color.textSecondary)
+            }
 
-            HStack(spacing: 8) {
+            HStack(spacing: DS.Spacing.sm) {
                 ForEach(durations, id: \.self) { minutes in
                     Button {
                         selectedDuration = minutes
+                        HapticFeedback.impact(.light)
                     } label: {
-                        VStack(spacing: 4) {
+                        VStack(spacing: DS.Spacing.xs) {
                             Text("\(minutes)")
-                                .font(.title3.bold())
+                                .font(.system(size: 20, weight: .bold, design: .rounded))
                             Text("min")
-                                .font(.caption2)
+                                .font(DS.Font.footnote)
                         }
-                        .frame(width: 56, height: 56)
-                        .background(selectedDuration == minutes ? Color.accentColor : Color.secondary.opacity(0.15))
-                        .foregroundStyle(selectedDuration == minutes ? .white : .primary)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, DS.Spacing.md)
+                        .background(selectedDuration == minutes ? DS.Color.accent : DS.Color.background)
+                        .foregroundStyle(selectedDuration == minutes ? .white : DS.Color.textPrimary)
+                        .clipShape(RoundedRectangle(cornerRadius: DS.Radius.button))
                     }
                 }
             }
+            .padding(.horizontal, DS.Spacing.lg)
 
-            Button {
+            DSPrimaryButton(label: "Start Zone", icon: "play.fill") {
                 onConfirm(selectedDuration)
-            } label: {
-                Label("Start Zone", systemImage: "play.fill")
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
             }
-            .buttonStyle(.borderedProminent)
-            .padding(.horizontal, 24)
+            .padding(.horizontal, DS.Spacing.lg)
 
             Spacer()
         }
+        .background(DS.Color.background.ignoresSafeArea())
     }
 }
 
 #Preview {
-    List {
+    VStack(spacing: DS.Spacing.sm) {
         ZoneRowView(
-            zone: RachioZone(id: "zone-1", name: "Front Lawn", enabled: true, zoneNumber: 1, lastWateredDate: Int(Date().addingTimeInterval(-172800).timeIntervalSince1970 * 1000), lastWateredDuration: 600, imageUrl: nil),
-            isActive: false,
-            onStart: { _ in },
-            onStop: {}
+            zone: RachioZone(id: "1", name: "Front Lawn", enabled: true, zoneNumber: 1,
+                             lastWateredDate: Int(Date().addingTimeInterval(-172800).timeIntervalSince1970 * 1000),
+                             lastWateredDuration: 600, imageUrl: nil),
+            isActive: false, onStart: { _ in }, onStop: {}
         )
         ZoneRowView(
-            zone: RachioZone(id: "zone-2", name: "Tomato Garden", enabled: true, zoneNumber: 4, lastWateredDate: nil, lastWateredDuration: nil, imageUrl: nil),
-            isActive: true,
-            onStart: { _ in },
-            onStop: {}
+            zone: RachioZone(id: "2", name: "Tomato Garden", enabled: true, zoneNumber: 4,
+                             lastWateredDate: nil, lastWateredDuration: nil, imageUrl: nil),
+            isActive: true, onStart: { _ in }, onStop: {}
         )
     }
+    .padding()
+    .dsBackground()
 }

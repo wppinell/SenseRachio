@@ -3,95 +3,148 @@ import SwiftUI
 struct SensorRowView: View {
     let sensor: SensorConfig
     let reading: SensorReading?
+    @AppStorage(AppStorageKey.temperatureUnit) private var tempUnit = "celsius"
+    @AppStorage(AppStorageKey.sensorPrimaryLabel) private var primaryLabel = "name"
+    @AppStorage(AppStorageKey.sensorSecondaryLabel) private var secondaryLabel = "moistureTemp"
+    @AppStorage(AppStorageKey.statusIndicatorStyle) private var indicatorStyle = "coloredDot"
 
-    private var moisture: Double {
-        reading?.moisture ?? 0
+    private var moisture: Double { reading?.moisture ?? 0 }
+    private var hasReading: Bool { reading != nil }
+    private var moistureColor: Color { DS.Color.moisture(moisture) }
+
+    private var primaryText: String {
+        switch primaryLabel {
+        case "eui":   return sensor.eui
+        case "group": return sensor.groupId ?? sensor.name
+        default:      return sensor.name
+        }
     }
 
-    private var tempC: Double {
-        reading?.tempC ?? 0
+    private var secondaryText: String? {
+        guard hasReading else { return nil }
+        switch secondaryLabel {
+        case "moisture":     return "\(Int(moisture))% moisture"
+        case "lastUpdated":  return reading.map { "Updated \($0.recordedAt.relativeFormatted)" }
+        case "group":        return sensor.groupId
+        default:             return tempDisplay.map { "\(Int(moisture))% · \($0)" }
+        }
     }
 
-    private var moistureColor: Color {
-        if moisture >= 40 { return .green }
-        if moisture >= 25 { return .yellow }
-        return .red
-    }
-
-    private var moistureLabel: String {
-        if reading == nil { return "No data" }
-        return "\(Int(moisture))%"
+    private var tempDisplay: String? {
+        guard let tempC = reading?.tempC else { return nil }
+        if tempUnit == "fahrenheit" {
+            return String(format: "%.1f°F", tempC * 9/5 + 32)
+        }
+        return String(format: "%.1f°C", tempC)
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(sensor.name)
-                        .font(.headline)
-                    Text(sensor.eui)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+            HStack(alignment: .top, spacing: DS.Spacing.md) {
+                // Status indicator
+                if indicatorStyle == "coloredDot" {
+                    DSStatusDot(
+                        status: !hasReading ? .unknown : moisture < 25 ? .offline : moisture < 40 ? .warning : .online,
+                        size: 10
+                    )
+                    .padding(.top, 4)
                 }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(primaryText)
+                        .font(DS.Font.cardTitle)
+                        .foregroundStyle(indicatorStyle == "coloredBackground" ? moistureColor : DS.Color.textPrimary)
+                    if let secondary = secondaryText {
+                        Text(secondary)
+                            .font(DS.Font.caption)
+                            .foregroundStyle(DS.Color.textSecondary)
+                    } else if !hasReading {
+                        Text("No data yet")
+                            .font(DS.Font.caption)
+                            .foregroundStyle(DS.Color.textTertiary)
+                    }
+                }
+
                 Spacer()
+
+                // Moisture value
                 VStack(alignment: .trailing, spacing: 2) {
-                    Text(moistureLabel)
-                        .font(.title3.bold())
-                        .foregroundStyle(moistureColor)
-                    if reading != nil {
-                        Text("\(String(format: "%.1f", tempC))°C")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                    if hasReading {
+                        Text("\(Int(moisture))%")
+                            .font(DS.Font.statSmall)
+                            .foregroundStyle(moistureColor)
+                    } else {
+                        Text("—")
+                            .font(DS.Font.statSmall)
+                            .foregroundStyle(DS.Color.textTertiary)
+                    }
+                    if let temp = tempDisplay, secondaryLabel == "moistureTemp" {
+                        Text(temp)
+                            .font(DS.Font.caption)
+                            .foregroundStyle(DS.Color.textSecondary)
                     }
                 }
             }
 
-            // Moisture Bar Indicator
-            if reading != nil {
-                GeometryReader { geo in
-                    ZStack(alignment: .leading) {
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(Color.secondary.opacity(0.15))
-                            .frame(height: 8)
-
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(moistureColor.gradient)
-                            .frame(width: max(geo.size.width * (moisture / 100), 4), height: 8)
-                            .animation(.easeInOut(duration: 0.4), value: moisture)
-                    }
-                }
-                .frame(height: 8)
+            // Moisture bar
+            if hasReading {
+                DSMoistureBar(value: moisture)
             }
 
             // Threshold indicator
-            if let threshold = sensor.moistureThreshold {
-                HStack(spacing: 4) {
+            if let threshold = sensor.moistureThreshold, hasReading {
+                HStack(spacing: DS.Spacing.xs) {
                     Image(systemName: moisture < threshold ? "exclamationmark.circle.fill" : "checkmark.circle.fill")
-                        .font(.caption2)
-                        .foregroundStyle(moisture < threshold ? .red : .green)
+                        .font(.system(size: 11))
+                        .foregroundStyle(moisture < threshold ? DS.Color.error : DS.Color.online)
                     Text("Threshold: \(Int(threshold))%")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+                        .font(DS.Font.footnote)
+                        .foregroundStyle(DS.Color.textSecondary)
+
+                    if sensor.autoWaterEnabled, let linkedZone = sensor.linkedZoneId {
+                        Spacer()
+                        Label("Auto", systemImage: "drop.fill")
+                            .font(DS.Font.footnote)
+                            .foregroundStyle(DS.Color.accent)
+                    }
                 }
             }
         }
-        .padding(.vertical, 4)
+        .padding(DS.Spacing.lg)
+        .background(indicatorStyle == "coloredBackground" && hasReading ? moistureColor.opacity(0.06) : DS.Color.card)
+        .dsCard()
+    }
+}
+
+private extension Date {
+    var relativeFormatted: String {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .abbreviated
+        return formatter.localizedString(for: self, relativeTo: Date())
     }
 }
 
 #Preview {
-    List {
-        SensorRowView(
-            sensor: SensorConfig(id: "1", name: "Garden Bed A", eui: "2CF7F1C044200006"),
-            reading: SensorReading(eui: "2CF7F1C044200006", moisture: 35.5, tempC: 21.3)
-        )
-        SensorRowView(
-            sensor: SensorConfig(id: "2", name: "Front Lawn", eui: "2CF7F1C044200007"),
-            reading: SensorReading(eui: "2CF7F1C044200007", moisture: 18.2, tempC: 23.1)
-        )
-        SensorRowView(
-            sensor: SensorConfig(id: "3", name: "Backyard", eui: "2CF7F1C044200008"),
-            reading: SensorReading(eui: "2CF7F1C044200008", moisture: 55.0, tempC: 19.8)
-        )
+    ScrollView {
+        VStack(spacing: DS.Spacing.sm) {
+            SensorRowView(
+                sensor: SensorConfig(id: "1", name: "Garden Bed A", eui: "2CF7F1C044200006", moistureThreshold: 30, autoWaterEnabled: true),
+                reading: SensorReading(eui: "2CF7F1C044200006", moisture: 22.5, tempC: 21.3)
+            )
+            SensorRowView(
+                sensor: SensorConfig(id: "2", name: "Front Lawn", eui: "2CF7F1C044200007"),
+                reading: SensorReading(eui: "2CF7F1C044200007", moisture: 35.2, tempC: 23.1)
+            )
+            SensorRowView(
+                sensor: SensorConfig(id: "3", name: "Backyard", eui: "2CF7F1C044200008"),
+                reading: SensorReading(eui: "2CF7F1C044200008", moisture: 62.0, tempC: 19.8)
+            )
+            SensorRowView(
+                sensor: SensorConfig(id: "4", name: "Herb Garden", eui: "2CF7F1C044200009"),
+                reading: nil
+            )
+        }
+        .padding()
     }
+    .dsBackground()
 }

@@ -9,86 +9,93 @@ struct ZonesView: View {
         NavigationStack {
             Group {
                 if viewModel.isLoading {
-                    ProgressView("Loading zones...")
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else if viewModel.devices.isEmpty {
-                    emptyZonesView
+                    ScrollView {
+                        DSLoadingState(label: "Loading zones…")
+                            .padding(DS.Spacing.lg)
+                    }
+                    .dsBackground()
                 } else {
-                    zonesList
+                    mainContent
                 }
             }
             .navigationTitle("Zones")
-            .overlay(alignment: .top) {
-                if let message = viewModel.errorMessage {
-                    InlineBanner(message: message, color: .red)
-                        .padding(.top, 4)
-                }
-            }
+            .navigationBarTitleDisplayMode(.large)
         }
         .task {
             await viewModel.loadZones(modelContext: modelContext)
         }
     }
 
-    // MARK: - Zones List
+    private var mainContent: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                if let message = viewModel.errorMessage {
+                    DSInlineBanner(message: message, style: .error)
+                        .padding(.horizontal, DS.Spacing.lg)
+                        .padding(.top, DS.Spacing.lg)
+                }
 
-    private var zonesList: some View {
-        List {
-            if let message = viewModel.errorMessage {
-                InlineBanner(message: message, color: .red)
-                    .listRowBackground(Color.clear)
-                    .listRowInsets(EdgeInsets())
-            }
-
-            ForEach(viewModel.devices) { device in
-                Section(device.name) {
-                    ForEach(device.zones.filter(\.enabled)) { zone in
-                        ZoneRowView(
-                            zone: zone,
-                            isActive: viewModel.activeZoneId == zone.id,
-                            onStart: { duration in
-                                Task {
-                                    await viewModel.startZone(id: zone.id, duration: duration, modelContext: modelContext)
-                                }
-                            },
-                            onStop: {
-                                Task {
-                                    await viewModel.stopZone(id: zone.id)
-                                }
-                            }
-                        )
+                if viewModel.devices.isEmpty {
+                    DSSectionHeader(title: "Zones")
+                    DSEmptyState(
+                        icon: "drop.fill",
+                        title: "No Zones Found",
+                        message: "No irrigation devices were found in your Rachio account.",
+                        action: { Task { await viewModel.loadZones(modelContext: modelContext) } },
+                        actionLabel: "Refresh"
+                    )
+                    .padding(.horizontal, DS.Spacing.lg)
+                } else {
+                    ForEach(viewModel.devices) { device in
+                        deviceSection(device)
                     }
                 }
+
+                Spacer(minLength: DS.Spacing.xxl)
             }
         }
-        .listStyle(.insetGrouped)
+        .dsBackground()
         .refreshable {
             await viewModel.loadZones(modelContext: modelContext)
         }
     }
 
-    // MARK: - Empty State
+    @ViewBuilder
+    private func deviceSection(_ device: RachioDevice) -> some View {
+        let enabledZones = device.zones.filter(\.enabled)
 
-    private var emptyZonesView: some View {
-        VStack(spacing: 20) {
-            Image(systemName: "drop.fill")
-                .font(.system(size: 60))
-                .foregroundStyle(.secondary)
-            Text("No Zones Found")
-                .font(.title2.bold())
-            Text("No irrigation devices were found in your Rachio account.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 40)
-            Button("Refresh") {
-                Task { await viewModel.loadZones(modelContext: modelContext) }
+        VStack(alignment: .leading, spacing: 0) {
+            // Device header
+            HStack(spacing: DS.Spacing.sm) {
+                DSStatusDot(status: device.on == true ? .online : .offline, size: 8)
+                Text(device.name.uppercased())
+                    .font(DS.Font.sectionHeader)
+                    .foregroundStyle(DS.Color.textSecondary)
+                    .tracking(0.8)
+                Spacer()
+                Text("\(enabledZones.count) zones")
+                    .font(DS.Font.caption)
+                    .foregroundStyle(DS.Color.textTertiary)
             }
-            .buttonStyle(.bordered)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .refreshable {
-            await viewModel.loadZones(modelContext: modelContext)
+            .padding(.horizontal, DS.Spacing.lg)
+            .padding(.top, DS.Spacing.xl)
+            .padding(.bottom, DS.Spacing.xs)
+
+            LazyVStack(spacing: DS.Spacing.sm) {
+                ForEach(enabledZones) { zone in
+                    ZoneRowView(
+                        zone: zone,
+                        isActive: viewModel.activeZoneId == zone.id,
+                        onStart: { duration in
+                            Task { await viewModel.startZone(id: zone.id, duration: duration, modelContext: modelContext) }
+                        },
+                        onStop: {
+                            Task { await viewModel.stopZone(id: zone.id) }
+                        }
+                    )
+                }
+            }
+            .padding(.horizontal, DS.Spacing.lg)
         }
     }
 }

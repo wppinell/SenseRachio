@@ -2,75 +2,41 @@ import SwiftUI
 
 struct MainTabView: View {
     @EnvironmentObject private var appState: AppState
+    @AppStorage(AppStorageKey.accentColor) private var accentColorName = "Blue"
 
-    var body: some View {
-        TabView {
-            DashboardView()
-                .tabItem {
-                    Label("Dashboard", systemImage: "chart.bar.fill")
-                }
-
-            if appState.hasSenseCraftCredentials {
-                SensorsView()
-                    .tabItem {
-                        Label("Sensors", systemImage: "sensor.fill")
-                    }
-            }
-
-            if appState.hasRachioCredentials {
-                ZonesView()
-                    .tabItem {
-                        Label("Zones", systemImage: "drop.fill")
-                    }
-            }
-
-            SettingsView(isOnboarding: false)
-                .tabItem {
-                    Label("Settings", systemImage: "gearshape.fill")
-                }
-        }
-        .overlay(alignment: .top) {
-            if appState.showErrorBanner, let message = appState.errorMessage {
-                ErrorBannerView(message: message) {
-                    appState.dismissError()
-                }
-                .transition(.move(edge: .top).combined(with: .opacity))
-                .animation(.easeInOut, value: appState.showErrorBanner)
-                .padding(.top, 8)
-            }
-        }
+    var accentColor: Color {
+        DS.Color.accentOptions[accentColorName] ?? DS.Color.accent
     }
-}
-
-// MARK: - Error Banner
-
-struct ErrorBannerView: View {
-    let message: String
-    let onDismiss: () -> Void
 
     var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundStyle(.white)
-            Text(message)
-                .font(.footnote)
-                .foregroundStyle(.white)
-                .lineLimit(2)
-            Spacer()
-            Button {
-                onDismiss()
-            } label: {
-                Image(systemName: "xmark")
-                    .foregroundStyle(.white)
-                    .font(.footnote.bold())
+        ZStack(alignment: .top) {
+            TabView {
+                DashboardView()
+                    .tabItem { Label("Home", systemImage: "square.grid.2x2.fill") }
+
+                if appState.hasSenseCraftCredentials {
+                    SensorsView()
+                        .tabItem { Label("Sensors", systemImage: "sensor.fill") }
+                }
+
+                if appState.hasRachioCredentials {
+                    ZonesView()
+                        .tabItem { Label("Zones", systemImage: "drop.fill") }
+                }
+
+                SettingsView(isOnboarding: false)
+                    .tabItem { Label("Settings", systemImage: "gearshape.fill") }
+            }
+            .tint(accentColor)
+
+            if appState.showErrorBanner, let msg = appState.errorMessage {
+                DSErrorBanner(message: msg, onDismiss: { appState.dismissError() })
+                    .padding(.top, 8)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .animation(.spring(response: 0.35), value: appState.showErrorBanner)
+                    .zIndex(100)
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-        .background(Color.red.gradient)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-        .padding(.horizontal, 16)
-        .shadow(radius: 4)
     }
 }
 

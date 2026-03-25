@@ -5,216 +5,251 @@ struct DashboardView: View {
     @EnvironmentObject private var appState: AppState
     @Environment(\.modelContext) private var modelContext
     @State private var viewModel = DashboardViewModel()
+    @AppStorage(AppStorageKey.temperatureUnit) private var tempUnit = "celsius"
 
     var body: some View {
         NavigationStack {
             Group {
                 if viewModel.isLoading {
-                    ProgressView("Loading dashboard...")
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else {
                     ScrollView {
-                        VStack(spacing: 16) {
-                            if let message = viewModel.errorMessage {
-                                InlineBanner(message: message, color: .red)
-                            }
-
-                            // Summary Cards
-                            HStack(spacing: 12) {
-                                SummaryCard(
-                                    title: "Sensors",
-                                    value: "\(viewModel.totalSensors)",
-                                    icon: "sensor.fill",
-                                    color: .blue
-                                )
-                                SummaryCard(
-                                    title: "Zones",
-                                    value: "\(viewModel.enabledZonesCount)",
-                                    icon: "drop.fill",
-                                    color: .cyan
-                                )
-                            }
-                            .padding(.horizontal)
-
-                            // Driest Sensor Card
-                            if let driest = viewModel.sensorReadings.min(by: { $0.moisture < $1.moisture }) {
-                                DriestSensorCard(reading: driest)
-                                    .padding(.horizontal)
-                            } else if appState.hasSenseCraftCredentials {
-                                EmptyStateCard(
-                                    icon: "sensor.fill",
-                                    message: "No sensor readings yet.\nPull to refresh."
-                                )
-                                .padding(.horizontal)
-                            }
-
-                            // Active Zones
-                            if !viewModel.zones.isEmpty {
-                                VStack(alignment: .leading, spacing: 8) {
-                                    Text("Devices")
-                                        .font(.headline)
-                                        .padding(.horizontal)
-
-                                    ForEach(viewModel.zones) { device in
-                                        DeviceSummaryRow(device: device)
-                                            .padding(.horizontal)
-                                    }
-                                }
-                            }
-
-                            Spacer(minLength: 20)
+                        VStack(spacing: DS.Spacing.md) {
+                            DSLoadingState(label: "Loading dashboard…")
                         }
-                        .padding(.top, 8)
+                        .padding(.horizontal, DS.Spacing.lg)
+                        .padding(.top, DS.Spacing.lg)
                     }
-                    .refreshable {
-                        await viewModel.load(modelContext: modelContext)
-                    }
+                    .dsBackground()
+                } else {
+                    mainContent
                 }
             }
-            .navigationTitle("Dashboard")
+            .navigationTitle("Home")
+            .navigationBarTitleDisplayMode(.large)
         }
         .task {
             await viewModel.load(modelContext: modelContext)
         }
     }
-}
 
-// MARK: - Summary Card
+    // MARK: - Main Content
 
-struct SummaryCard: View {
-    let title: String
-    let value: String
-    let icon: String
-    let color: Color
+    private var mainContent: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                // Error banner
+                if let message = viewModel.errorMessage {
+                    DSInlineBanner(message: message, style: .error)
+                        .padding(.horizontal, DS.Spacing.lg)
+                        .padding(.top, DS.Spacing.lg)
+                }
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Image(systemName: icon)
-                    .foregroundStyle(color)
-                Spacer()
-                Text(value)
-                    .font(.largeTitle.bold())
+                // Summary Stats
+                DSSectionHeader(title: "Overview")
+
+                HStack(spacing: DS.Spacing.md) {
+                    DSStatCard(
+                        icon: "sensor.fill",
+                        iconColor: DS.Color.accent,
+                        value: "\(viewModel.totalSensors)",
+                        label: viewModel.totalSensors == 1 ? "Sensor" : "Sensors"
+                    )
+                    DSStatCard(
+                        icon: "drop.fill",
+                        iconColor: DS.Color.online,
+                        value: "\(viewModel.enabledZonesCount)",
+                        label: viewModel.enabledZonesCount == 1 ? "Zone" : "Zones"
+                    )
+                }
+                .padding(.horizontal, DS.Spacing.lg)
+
+                // Driest Sensor
+                if let driest = viewModel.sensorReadings.min(by: { $0.moisture < $1.moisture }) {
+                    DSSectionHeader(title: "Attention Required")
+                    DriestSensorCardView(reading: driest, tempUnit: tempUnit)
+                        .padding(.horizontal, DS.Spacing.lg)
+                } else if appState.hasSenseCraftCredentials {
+                    DSSectionHeader(title: "Sensors")
+                    DSEmptyState(
+                        icon: "sensor.fill",
+                        title: "No Readings Yet",
+                        message: "Pull down to refresh sensor data.",
+                        action: { Task { await viewModel.load(modelContext: modelContext) } },
+                        actionLabel: "Refresh"
+                    )
+                    .padding(.horizontal, DS.Spacing.lg)
+                }
+
+                // All Sensors Summary
+                if viewModel.sensorReadings.count > 1 {
+                    DSSectionHeader(title: "All Sensors", count: viewModel.sensorReadings.count)
+                    VStack(spacing: DS.Spacing.sm) {
+                        ForEach(viewModel.sensorReadings.sorted(by: { $0.moisture < $1.moisture }), id: \.eui) { reading in
+                            SensorSummaryRow(reading: reading, tempUnit: tempUnit)
+                        }
+                    }
+                    .padding(.horizontal, DS.Spacing.lg)
+                }
+
+                // Devices
+                if !viewModel.zones.isEmpty {
+                    DSSectionHeader(title: "Irrigation Devices", count: viewModel.zones.count)
+                    VStack(spacing: DS.Spacing.sm) {
+                        ForEach(viewModel.zones) { device in
+                            DeviceSummaryCard(device: device)
+                        }
+                    }
+                    .padding(.horizontal, DS.Spacing.lg)
+                } else if appState.hasRachioCredentials {
+                    DSSectionHeader(title: "Irrigation")
+                    DSEmptyState(
+                        icon: "drop.fill",
+                        title: "No Devices Found",
+                        message: "No Rachio devices in your account.",
+                        action: { Task { await viewModel.load(modelContext: modelContext) } }
+                    )
+                    .padding(.horizontal, DS.Spacing.lg)
+                }
+
+                if !appState.hasAnyCredentials {
+                    DSSectionHeader(title: "Get Started")
+                    DSEmptyState(
+                        icon: "leaf.fill",
+                        title: "No Services Connected",
+                        message: "Add your SenseCraft and Rachio credentials in Settings to get started."
+                    )
+                    .padding(.horizontal, DS.Spacing.lg)
+                }
+
+                Spacer(minLength: DS.Spacing.xxl)
             }
-            Text(title)
-                .font(.caption)
-                .foregroundStyle(.secondary)
         }
-        .padding()
-        .background(.regularMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .dsBackground()
+        .refreshable {
+            await viewModel.load(modelContext: modelContext)
+        }
     }
 }
 
 // MARK: - Driest Sensor Card
 
-struct DriestSensorCard: View {
+private struct DriestSensorCardView: View {
     let reading: SensorReading
+    let tempUnit: String
 
-    var moistureColor: Color {
-        if reading.moisture >= 40 { return .green }
-        if reading.moisture >= 25 { return .yellow }
-        return .red
+    var tempDisplay: String {
+        if tempUnit == "fahrenheit" {
+            let f = reading.tempC * 9/5 + 32
+            return String(format: "%.1f°F", f)
+        }
+        return String(format: "%.1f°C", reading.tempC)
     }
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Label("Driest Sensor", systemImage: "exclamationmark.triangle.fill")
-                .font(.caption.bold())
-                .foregroundStyle(.secondary)
+    var statusLabel: String {
+        if reading.moisture < 25 { return "DRY" }
+        if reading.moisture < 40 { return "LOW" }
+        return "OK"
+    }
 
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(reading.eui)
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                    Text("\(Int(reading.moisture))% moisture")
-                        .font(.title2.bold())
-                        .foregroundStyle(moistureColor)
-                    Text("\(String(format: "%.1f", reading.tempC))°C")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+    var statusColor: Color { DS.Color.moisture(reading.moisture) }
+
+    var body: some View {
+        HStack(spacing: DS.Spacing.lg) {
+            DSCircleGauge(value: reading.moisture, size: 80)
+
+            VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+                DSBadge(text: statusLabel, color: statusColor)
+
+                Text(reading.eui)
+                    .font(DS.Font.mono)
+                    .foregroundStyle(DS.Color.textSecondary)
+                    .lineLimit(1)
+
+                HStack(spacing: DS.Spacing.md) {
+                    Label(tempDisplay, systemImage: "thermometer")
+                        .font(DS.Font.caption)
+                        .foregroundStyle(DS.Color.textSecondary)
+                    Label(reading.recordedAt.relativeFormatted, systemImage: "clock")
+                        .font(DS.Font.caption)
+                        .foregroundStyle(DS.Color.textSecondary)
                 }
-                Spacer()
-                ZStack {
-                    Circle()
-                        .stroke(moistureColor.opacity(0.2), lineWidth: 6)
-                    Circle()
-                        .trim(from: 0, to: reading.moisture / 100)
-                        .stroke(moistureColor, style: StrokeStyle(lineWidth: 6, lineCap: .round))
-                        .rotationEffect(.degrees(-90))
-                }
-                .frame(width: 60, height: 60)
             }
+
+            Spacer()
         }
-        .padding()
-        .background(.regularMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .padding(DS.Spacing.lg)
+        .dsCard()
     }
 }
 
-// MARK: - Device Summary Row
+// MARK: - Sensor Summary Row
 
-struct DeviceSummaryRow: View {
+private struct SensorSummaryRow: View {
+    let reading: SensorReading
+    let tempUnit: String
+
+    var body: some View {
+        HStack(spacing: DS.Spacing.md) {
+            DSStatusDot(status: reading.moisture < 25 ? .offline : reading.moisture < 40 ? .warning : .online, size: 10)
+
+            Text(reading.eui)
+                .font(DS.Font.mono)
+                .foregroundStyle(DS.Color.textSecondary)
+                .lineLimit(1)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            DSMoistureBar(value: reading.moisture)
+                .frame(width: 60)
+
+            Text("\(Int(reading.moisture))%")
+                .font(DS.Font.label)
+                .foregroundStyle(DS.Color.moisture(reading.moisture))
+                .frame(width: 36, alignment: .trailing)
+        }
+        .padding(.horizontal, DS.Spacing.lg)
+        .padding(.vertical, DS.Spacing.md)
+        .dsCard()
+    }
+}
+
+// MARK: - Device Summary Card
+
+private struct DeviceSummaryCard: View {
     let device: RachioDevice
 
+    var enabledZones: Int { device.zones.filter(\.enabled).count }
+    var statusColor: Color { device.on == true ? DS.Color.online : DS.Color.textTertiary }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(device.name)
-                .font(.subheadline.bold())
-            Text("\(device.zones.filter(\.enabled).count) of \(device.zones.count) zones enabled")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+        HStack(spacing: DS.Spacing.md) {
+            DSStatusDot(status: device.on == true ? .online : .offline, size: 10)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(device.name)
+                    .font(DS.Font.cardTitle)
+                    .foregroundStyle(DS.Color.textPrimary)
+                Text("\(enabledZones) of \(device.zones.count) zones enabled")
+                    .font(DS.Font.caption)
+                    .foregroundStyle(DS.Color.textSecondary)
+            }
+
+            Spacer()
+
+            DSBadge(text: device.on == true ? "Online" : "Offline",
+                    color: device.on == true ? DS.Color.online : DS.Color.textTertiary,
+                    small: true)
         }
-        .padding()
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.regularMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .padding(DS.Spacing.lg)
+        .dsCard()
     }
 }
 
-// MARK: - Empty State Card
+// MARK: - Date Extension
 
-struct EmptyStateCard: View {
-    let icon: String
-    let message: String
-
-    var body: some View {
-        VStack(spacing: 12) {
-            Image(systemName: icon)
-                .font(.largeTitle)
-                .foregroundStyle(.secondary)
-            Text(message)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-        }
-        .padding(24)
-        .frame(maxWidth: .infinity)
-        .background(.regularMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-    }
-}
-
-// MARK: - Inline Banner
-
-struct InlineBanner: View {
-    let message: String
-    let color: Color
-
-    var body: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "exclamationmark.circle.fill")
-                .foregroundStyle(color)
-            Text(message)
-                .font(.footnote)
-                .foregroundStyle(color)
-        }
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(color.opacity(0.1))
-        .clipShape(RoundedRectangle(cornerRadius: 10))
-        .padding(.horizontal)
+private extension Date {
+    var relativeFormatted: String {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .abbreviated
+        return formatter.localizedString(for: self, relativeTo: Date())
     }
 }
 

@@ -8,13 +8,18 @@ class SensorConfig {
     var eui: String
     var linkedZoneId: String?
     var moistureThreshold: Double?
+    var autoWaterEnabled: Bool
+    var groupId: String?
 
-    init(id: String, name: String, eui: String, linkedZoneId: String? = nil, moistureThreshold: Double? = nil) {
+    init(id: String, name: String, eui: String, linkedZoneId: String? = nil,
+         moistureThreshold: Double? = nil, autoWaterEnabled: Bool = false, groupId: String? = nil) {
         self.id = id
         self.name = name
         self.eui = eui
         self.linkedZoneId = linkedZoneId
         self.moistureThreshold = moistureThreshold
+        self.autoWaterEnabled = autoWaterEnabled
+        self.groupId = groupId
     }
 }
 
@@ -45,5 +50,37 @@ class SensorReading {
         self.moisture = moisture
         self.tempC = tempC
         self.recordedAt = recordedAt
+    }
+}
+
+@Model
+class SensorGroup {
+    var id: String
+    var name: String
+    var iconName: String
+    var sortOrder: Int
+    var assignedSensorIds: [String]
+    var assignedZoneIds: [String]
+
+    init(id: String = UUID().uuidString, name: String, iconName: String = "circle.hexagongrid",
+         sortOrder: Int = 0, assignedSensorIds: [String] = [], assignedZoneIds: [String] = []) {
+        self.id = id
+        self.name = name
+        self.iconName = iconName
+        self.sortOrder = sortOrder
+        self.assignedSensorIds = assignedSensorIds
+        self.assignedZoneIds = assignedZoneIds
+    }
+}
+
+@Model
+class DashboardCardOrder {
+    var cards: [String]  // ordered card IDs
+    var hiddenCards: [String]
+
+    init(cards: [String] = ["moisture", "zones", "weather", "history", "schedule"],
+         hiddenCards: [String] = []) {
+        self.cards = cards
+        self.hiddenCards = hiddenCards
     }
 }
