@@ -59,7 +59,7 @@ struct AboutView: View {
                     Text("Copyright")
                         .foregroundStyle(DS.Color.textSecondary)
                     Spacer()
-                    Text("© \(currentYear) SenseRachio")
+                    Text("© 2026 Pinello")
                         .foregroundStyle(DS.Color.textPrimary)
                 }
             } header: { Text("Version Info") }
@@ -106,11 +106,6 @@ struct AboutView: View {
         .navigationBarTitleDisplayMode(.inline)
     }
 
-    private var currentYear: String {
-        let f = DateFormatter()
-        f.dateFormat = "yyyy"
-        return f.string(from: Date())
-    }
 }
 
 // MARK: - Open Source Licenses

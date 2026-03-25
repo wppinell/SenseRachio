@@ -161,34 +161,129 @@ struct GroupingView: View {
     }
 }
 
-// MARK: - Group Detail
+// MARK: - Group Detail (EditGroupView)
 
 private struct GroupDetailView: View {
     let group: SensorGroup
     let sensors: [SensorConfig]
     @Environment(\.modelContext) private var modelContext
+    @Query private var zones: [ZoneConfig]
+
+    @State private var groupName: String = ""
+    @State private var selectedIcon: String = "circle.hexagongrid"
+
+    private let iconOptions = [
+        "circle.hexagongrid", "leaf.fill", "drop.fill", "sun.max.fill",
+        "tree.fill", "house.fill", "fork.knife", "flower.fill",
+        "camera.macro", "wind", "snowflake", "flame.fill"
+    ]
 
     var body: some View {
         List {
-            Section("Assigned Sensors") {
-                ForEach(sensors) { sensor in
-                    let isAssigned = group.assignedSensorIds.contains(sensor.id)
-                    Button {
-                        toggleSensor(sensor)
-                    } label: {
-                        HStack {
-                            Image(systemName: isAssigned ? "checkmark.circle.fill" : "circle")
-                                .foregroundStyle(isAssigned ? DS.Color.online : DS.Color.textTertiary)
-                            Text(sensor.name)
-                                .foregroundStyle(DS.Color.textPrimary)
+            // Name
+            Section("Name") {
+                TextField("Group name", text: $groupName)
+                    .onSubmit { saveName() }
+            }
+
+            // Icon picker (emoji grid)
+            Section("Icon") {
+                LazyVGrid(columns: Array(repeating: .init(.flexible()), count: 6), spacing: DS.Spacing.md) {
+                    ForEach(iconOptions, id: \.self) { icon in
+                        Button {
+                            selectedIcon = icon
+                            group.iconName = icon
+                            try? modelContext.save()
+                        } label: {
+                            Image(systemName: icon)
+                                .font(.system(size: 20))
+                                .foregroundStyle(selectedIcon == icon ? DS.Color.accent : DS.Color.textSecondary)
+                                .frame(width: 42, height: 42)
+                                .background(selectedIcon == icon ? DS.Color.accentMuted : DS.Color.background)
+                                .clipShape(RoundedRectangle(cornerRadius: DS.Radius.badge))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.vertical, DS.Spacing.xs)
+            }
+            .listRowBackground(Color.clear)
+            .listRowInsets(.init())
+
+            // Sensors checkboxes
+            Section {
+                if sensors.isEmpty {
+                    Text("No sensors available")
+                        .foregroundStyle(DS.Color.textTertiary)
+                        .font(DS.Font.cardBody)
+                } else {
+                    ForEach(sensors) { sensor in
+                        let isAssigned = group.assignedSensorIds.contains(sensor.id)
+                        Button {
+                            toggleSensor(sensor)
+                        } label: {
+                            HStack {
+                                Image(systemName: isAssigned ? "checkmark.circle.fill" : "circle")
+                                    .foregroundStyle(isAssigned ? DS.Color.online : DS.Color.textTertiary)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(sensor.name)
+                                        .foregroundStyle(DS.Color.textPrimary)
+                                    Text(sensor.eui)
+                                        .font(DS.Font.mono)
+                                        .foregroundStyle(DS.Color.textTertiary)
+                                }
+                            }
                         }
                     }
                 }
+            } header: { Text("Sensors (\(group.assignedSensorIds.count))") }
+
+            // Zones checkboxes
+            Section {
+                if zones.isEmpty {
+                    Text("No zones available — load Zones tab first")
+                        .foregroundStyle(DS.Color.textTertiary)
+                        .font(DS.Font.cardBody)
+                } else {
+                    ForEach(zones) { zone in
+                        let isAssigned = group.assignedZoneIds.contains(zone.id)
+                        Button {
+                            toggleZone(zone)
+                        } label: {
+                            HStack {
+                                Image(systemName: isAssigned ? "checkmark.circle.fill" : "circle")
+                                    .foregroundStyle(isAssigned ? DS.Color.online : DS.Color.textTertiary)
+                                Text(zone.name)
+                                    .foregroundStyle(DS.Color.textPrimary)
+                            }
+                        }
+                    }
+                }
+            } header: { Text("Zones (\(group.assignedZoneIds.count))") }
+
+            // Delete button
+            Section {
+                Button("Delete Group", role: .destructive) {
+                    modelContext.delete(group)
+                    try? modelContext.save()
+                }
+                .frame(maxWidth: .infinity, alignment: .center)
             }
         }
         .listStyle(.insetGrouped)
         .navigationTitle(group.name)
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            groupName = group.name
+            selectedIcon = group.iconName
+        }
+    }
+
+    private func saveName() {
+        let trimmed = groupName.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return }
+        group.name = trimmed
+        try? modelContext.save()
     }
 
     private func toggleSensor(_ sensor: SensorConfig) {
@@ -198,6 +293,15 @@ private struct GroupDetailView: View {
         } else {
             group.assignedSensorIds.append(sensor.id)
             sensor.groupId = group.id
+        }
+        try? modelContext.save()
+    }
+
+    private func toggleZone(_ zone: ZoneConfig) {
+        if group.assignedZoneIds.contains(zone.id) {
+            group.assignedZoneIds.removeAll(where: { $0 == zone.id })
+        } else {
+            group.assignedZoneIds.append(zone.id)
         }
         try? modelContext.save()
     }

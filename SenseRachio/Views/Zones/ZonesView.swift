@@ -4,6 +4,7 @@ import SwiftData
 struct ZonesView: View {
     @Environment(\.modelContext) private var modelContext
     @State private var viewModel = ZonesViewModel()
+    @State private var showStopAllConfirmation = false
 
     var body: some View {
         NavigationStack {
@@ -51,12 +52,52 @@ struct ZonesView: View {
                     }
                 }
 
+                // STOP ALL ZONES button
+                if !viewModel.devices.isEmpty {
+                    VStack(spacing: DS.Spacing.sm) {
+                        Divider()
+                            .padding(.horizontal, DS.Spacing.lg)
+                            .padding(.top, DS.Spacing.lg)
+
+                        Button(role: .destructive) {
+                            showStopAllConfirmation = true
+                        } label: {
+                            HStack(spacing: DS.Spacing.sm) {
+                                Image(systemName: "stop.circle.fill")
+                                    .font(.system(size: 17, weight: .semibold))
+                                Text("Stop All Zones")
+                                    .font(DS.Font.buttonLabel)
+                                    .fontWeight(.semibold)
+                            }
+                            .foregroundStyle(DS.Color.error)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, DS.Spacing.md)
+                            .background(DS.Color.errorMuted)
+                            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.button))
+                        }
+                        .padding(.horizontal, DS.Spacing.lg)
+                        .padding(.bottom, DS.Spacing.xl)
+                    }
+                }
+
                 Spacer(minLength: DS.Spacing.xxl)
             }
         }
         .dsBackground()
         .refreshable {
             await viewModel.loadZones(modelContext: modelContext)
+        }
+        .confirmationDialog(
+            "Stop All Zones",
+            isPresented: $showStopAllConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Stop All Zones", role: .destructive) {
+                Task { await viewModel.stopAllZones() }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This will stop all currently running zones.")
         }
     }
 
@@ -83,16 +124,31 @@ struct ZonesView: View {
 
             LazyVStack(spacing: DS.Spacing.sm) {
                 ForEach(enabledZones) { zone in
-                    ZoneRowView(
-                        zone: zone,
-                        isActive: viewModel.activeZoneId == zone.id,
-                        onStart: { duration in
-                            Task { await viewModel.startZone(id: zone.id, duration: duration, modelContext: modelContext) }
-                        },
-                        onStop: {
-                            Task { await viewModel.stopZone(id: zone.id) }
-                        }
-                    )
+                    NavigationLink {
+                        ZoneDetailView(
+                            zone: zone,
+                            isActive: viewModel.activeZoneId == zone.id,
+                            onStart: { duration in
+                                Task { await viewModel.startZone(id: zone.id, duration: duration, modelContext: modelContext) }
+                            },
+                            onStop: {
+                                Task { await viewModel.stopZone(id: zone.id) }
+                            }
+                        )
+                    } label: {
+                        ZoneRowView(
+                            zone: zone,
+                            isActive: viewModel.activeZoneId == zone.id,
+                            onStart: { duration in
+                                Task { await viewModel.startZone(id: zone.id, duration: duration, modelContext: modelContext) }
+                            },
+                            onStop: {
+                                Task { await viewModel.stopZone(id: zone.id) }
+                            }
+                        )
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
                 }
             }
             .padding(.horizontal, DS.Spacing.lg)

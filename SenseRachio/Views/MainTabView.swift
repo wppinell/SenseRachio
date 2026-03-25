@@ -10,15 +10,22 @@ struct MainTabView: View {
 
     var body: some View {
         ZStack(alignment: .top) {
-            TabView {
+            TabView(selection: $appState.selectedTab) {
+                DashboardView()
+                    .tabItem { Label("Home", systemImage: "house.fill") }
+                    .tag(0)
+
                 SensorsView()
-                    .tabItem { Label("Sensors", systemImage: "sensor.fill") }
+                    .tabItem { Label("Sensors", systemImage: "leaf.fill") }
+                    .tag(1)
 
                 ZonesView()
                     .tabItem { Label("Zones", systemImage: "drop.fill") }
+                    .tag(2)
 
                 SettingsView(isOnboarding: false)
                     .tabItem { Label("Settings", systemImage: "gearshape.fill") }
+                    .tag(3)
             }
             .tint(accentColor)
 

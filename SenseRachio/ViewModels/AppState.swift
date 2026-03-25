@@ -8,6 +8,7 @@ final class AppState: ObservableObject {
     @Published private(set) var hasRachioCredentials: Bool = false
     @Published var errorMessage: String? = nil
     @Published var showErrorBanner: Bool = false
+    @Published var selectedTab: Int = 0
 
     var hasAnyCredentials: Bool {
         hasSenseCraftCredentials || hasRachioCredentials

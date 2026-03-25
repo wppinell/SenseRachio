@@ -95,4 +95,20 @@ final class ZonesViewModel {
             }
         }
     }
+
+    // MARK: - Stop All Zones
+
+    func stopAllZones() async {
+        await MainActor.run { isLoading = true; errorMessage = nil }
+
+        let allZones = devices.flatMap(\.zones).filter(\.enabled)
+        for zone in allZones {
+            try? await RachioAPI.shared.stopZone(id: zone.id)
+        }
+
+        await MainActor.run {
+            self.activeZoneId = nil
+            self.isLoading = false
+        }
+    }
 }
