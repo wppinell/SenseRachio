@@ -12,7 +12,14 @@ class SensorConfig {
     var autoWaterEnabled: Bool
     var groupId: String?
     var isHiddenFromGraphs: Bool
+    var subscriptionExpiryDate: Date?
     
+    /// Days until subscription expires (nil if unknown)
+    var daysUntilExpiry: Int? {
+        guard let expiry = subscriptionExpiryDate else { return nil }
+        return Calendar.current.dateComponents([.day], from: Date(), to: expiry).day
+    }
+
     /// Display name: alias if set, otherwise original name
     var displayName: String {
         if let alias = alias, !alias.isEmpty {
@@ -23,7 +30,7 @@ class SensorConfig {
 
     init(id: String, name: String, eui: String, alias: String? = nil, linkedZoneId: String? = nil,
          moistureThreshold: Double? = nil, autoWaterEnabled: Bool = false,
-         groupId: String? = nil, isHiddenFromGraphs: Bool = false) {
+         groupId: String? = nil, isHiddenFromGraphs: Bool = false, subscriptionExpiryDate: Date? = nil) {
         self.id = id
         self.name = name
         self.alias = alias
@@ -33,6 +40,7 @@ class SensorConfig {
         self.autoWaterEnabled = autoWaterEnabled
         self.groupId = groupId
         self.isHiddenFromGraphs = isHiddenFromGraphs
+        self.subscriptionExpiryDate = subscriptionExpiryDate
     }
 }
 

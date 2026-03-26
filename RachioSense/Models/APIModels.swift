@@ -13,10 +13,24 @@ struct SenseCraftListDevicesResponse: Codable {
 struct SenseCraftDeviceItem: Codable {
     let deviceEui: String
     let deviceName: String?
+    let expiredTime: String?   // ISO8601 e.g. "2026-04-09T00:00:00.000Z"
 
     enum CodingKeys: String, CodingKey {
         case deviceEui = "device_eui"
         case deviceName = "device_name"
+        case expiredTime = "expired_time"
+    }
+    
+    var expiryDate: Date? {
+        guard let s = expiredTime else { return nil }
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return f.date(from: s) ?? ISO8601DateFormatter().date(from: s)
+    }
+    
+    var daysUntilExpiry: Int? {
+        guard let expiry = expiryDate else { return nil }
+        return Calendar.current.dateComponents([.day], from: Date(), to: expiry).day
     }
 }
 

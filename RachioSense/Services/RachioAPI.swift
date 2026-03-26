@@ -98,6 +98,8 @@ enum RachioAPIError: Error, LocalizedError {
             return "Rachio credentials not found. Please configure them in Settings."
         case .invalidResponse:
             return "Invalid response from Rachio API."
+        case .httpError(429):
+            return "Rachio API rate limit reached. Resets at midnight UTC."
         case .httpError(let code):
             return "Rachio API returned HTTP \(code)."
         case .decodingError(let error):
@@ -115,6 +117,23 @@ final class RachioAPI {
 
     private let baseURL = "https://api.rach.io/1/public"
     private let session: URLSession
+    
+    // Cache to avoid hammering Rachio API
+    private var cachedDevices: [RachioDevice]? = nil
+    private var cacheTimestamp: Date? = nil
+    private let cacheTTL: TimeInterval = 300 // 5 minutes
+    private var activeFetchTask: Task<[RachioDevice], Error>? = nil
+    private let fetchLock = NSLock()
+    
+    // Cache personId and deviceIds to avoid repeated calls
+    private var cachedPersonId: String? = nil
+    private var cachedDeviceIds: [String]? = nil
+    
+    // Rate limit state (public for UI)
+    private(set) var rateLimitedUntil: Date? = nil
+    private(set) var rateLimitRemaining: Int? = nil
+    private(set) var rateLimitTotal: Int? = nil
+    private let rateLimitBackoff: TimeInterval = 300 // 5 minutes fallback
 
     private init() {
         let config = URLSessionConfiguration.default
@@ -149,21 +168,85 @@ final class RachioAPI {
         return request
     }
 
+    // MARK: - Rate Limit Logging
+    
+    private func logRateLimitHeaders(_ response: HTTPURLResponse, endpoint: String) {
+        let headers = response.allHeaderFields
+        var info: [String] = []
+        
+        // Common rate limit header names
+        for key in ["X-RateLimit-Limit", "X-RateLimit-Remaining", "X-RateLimit-Reset", 
+                    "RateLimit-Limit", "RateLimit-Remaining", "RateLimit-Reset",
+                    "Retry-After", "X-Retry-After"] {
+            if let value = headers[key] ?? headers[key.lowercased()] {
+                info.append("\(key): \(value)")
+            }
+        }
+        
+        if !info.isEmpty {
+            print("[RachioAPI] \(endpoint) rate headers: \(info.joined(separator: ", "))")
+        } else if response.statusCode == 429 {
+            print("[RachioAPI] \(endpoint) 429 - all headers: \(headers)")
+        }
+        
+        // Parse rate limit values (headers might have different casing)
+        let headerDict = Dictionary(uniqueKeysWithValues: headers.map { (String(describing: $0.key).lowercased(), $0.value) })
+        
+        if let limitStr = headerDict["x-ratelimit-limit"] as? String, let limit = Int(limitStr) {
+            rateLimitTotal = limit
+        }
+        if let remainStr = headerDict["x-ratelimit-remaining"] as? String, let remain = Int(remainStr) {
+            rateLimitRemaining = remain
+        }
+        if let resetStr = headerDict["x-ratelimit-reset"] as? String {
+            let formatter = ISO8601DateFormatter()
+            if let resetDate = formatter.date(from: resetStr) {
+                if response.statusCode == 429 || rateLimitRemaining == 0 {
+                    rateLimitedUntil = resetDate
+                    let mins = Int(resetDate.timeIntervalSinceNow / 60)
+                    print("[RachioAPI] Rate limited until \(resetStr) (\(mins) min from now)")
+                }
+            }
+        }
+    }
+    
+    /// Check if currently rate limited
+    var isRateLimited: Bool {
+        guard let until = rateLimitedUntil else { return false }
+        return Date() < until
+    }
+    
+    /// Minutes until rate limit resets (nil if not limited)
+    var rateLimitResetsInMinutes: Int? {
+        guard let until = rateLimitedUntil, Date() < until else { return nil }
+        return max(1, Int(until.timeIntervalSinceNow / 60))
+    }
+
     // MARK: - Get Person Info
 
     private func getPersonId() async throws -> String {
+        // Return cached personId if available
+        if let cached = cachedPersonId {
+            return cached
+        }
+        
         let request = try makeRequest(path: "/person/info")
         let (data, response) = try await session.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw RachioAPIError.invalidResponse
         }
+        
+        // Log rate limit headers
+        logRateLimitHeaders(httpResponse, endpoint: "/person/info")
+        
         guard httpResponse.statusCode == 200 else {
             throw RachioAPIError.httpError(httpResponse.statusCode)
         }
 
         do {
             let decoded = try JSONDecoder().decode(RachioPersonInfoResponse.self, from: data)
+            cachedPersonId = decoded.id
             return decoded.id
         } catch {
             throw RachioAPIError.decodingError(error)
@@ -221,19 +304,80 @@ final class RachioAPI {
 
     // MARK: - Get Devices
 
-    func getDevices() async throws -> [RachioDevice] {
+    func getDevices(forceRefresh: Bool = false) async throws -> [RachioDevice] {
+        // If we're rate-limited, fail fast or return stale cache
+        if let until = rateLimitedUntil, Date() < until {
+            let waitSecs = Int(until.timeIntervalSince(Date()))
+            print("[RachioAPI] rate-limited, \(waitSecs)s remaining")
+            if let cached = cachedDevices {
+                return cached // return stale cache rather than error
+            }
+            throw RachioAPIError.httpError(429)
+        }
+        
+        // Return cached if fresh enough (no lock needed for read)
+        if !forceRefresh,
+           let cached = cachedDevices,
+           let ts = cacheTimestamp,
+           Date().timeIntervalSince(ts) < cacheTTL {
+            print("[RachioAPI] returning cached devices (\(Int(Date().timeIntervalSince(ts)))s old)")
+            return cached
+        }
+        
+        // Thread-safe check for existing fetch task
+        fetchLock.lock()
+        if let existing = activeFetchTask {
+            fetchLock.unlock()
+            print("[RachioAPI] getDevices: fetch in progress, waiting for existing task...")
+            return try await existing.value
+        }
+        
+        print("[RachioAPI] getDevices: starting new fetch task")
+        // Start new fetch task while holding lock
+        let task = Task<[RachioDevice], Error> {
+            defer { 
+                fetchLock.lock()
+                activeFetchTask = nil 
+                fetchLock.unlock()
+                print("[RachioAPI] getDevices: fetch task completed, cleared activeFetchTask")
+            }
+            do {
+                let result = try await fetchDevicesFromAPI()
+                rateLimitedUntil = nil // clear any backoff on success
+                return result
+            } catch RachioAPIError.httpError(429) {
+                // Only use fallback if header didn't set a reset time
+                print("[RachioAPI] got 429, rateLimitedUntil=\(String(describing: rateLimitedUntil))")
+                if rateLimitedUntil == nil || rateLimitedUntil! < Date() {
+                    print("[RachioAPI] no valid reset time from header, backing off for 5 min")
+                    rateLimitedUntil = Date().addingTimeInterval(rateLimitBackoff)
+                }
+                throw RachioAPIError.httpError(429)
+            }
+        }
+        activeFetchTask = task
+        fetchLock.unlock()
+        
+        return try await task.value
+    }
+    
+    private func fetchDevicesFromAPI() async throws -> [RachioDevice] {
         let personId = try await getPersonId()
         print("[RachioAPI] personId: \(personId)")
 
-        // Discover device IDs via /person/{personId}, fall back to cached Keychain value
+        // Use in-memory cache, then try API, then Keychain fallback
         let deviceIds: [String]
-        if let ids = try? await fetchDeviceIds(personId: personId), !ids.isEmpty {
-            // Cache for future resilience
+        if let cached = cachedDeviceIds, !cached.isEmpty {
+            deviceIds = cached
+        } else if let ids = try? await fetchDeviceIds(personId: personId), !ids.isEmpty {
+            cachedDeviceIds = ids
             _ = try? KeychainService.shared.save(ids.joined(separator: ","), forKey: KeychainKey.rachioDeviceIds)
             deviceIds = ids
-        } else if let cached = KeychainService.shared.load(forKey: KeychainKey.rachioDeviceIds),
-                  !cached.isEmpty {
-            deviceIds = cached.split(separator: ",").map(String.init)
+        } else if let keychain = KeychainService.shared.load(forKey: KeychainKey.rachioDeviceIds),
+                  !keychain.isEmpty {
+            let ids = keychain.split(separator: ",").map(String.init)
+            cachedDeviceIds = ids
+            deviceIds = ids
         } else {
             throw RachioAPIError.apiError("Could not discover Rachio devices. Try saving your API key and testing the connection again.")
         }
@@ -245,6 +389,10 @@ final class RachioAPI {
             print("[RachioAPI] fetched device: \(device.name), \(device.scheduleRules?.count ?? 0) schedules")
             devices.append(device)
         }
+        
+        // Cache result
+        cachedDevices = devices
+        cacheTimestamp = Date()
         return devices
     }
 

@@ -107,6 +107,7 @@ enum AppStorageKey {
     static let dryThreshold            = "threshold_dry"               // Double default 25
     static let lowThreshold            = "threshold_low"               // Double default 40
     static let autoWaterThreshold      = "threshold_auto_water"        // Double default 20
+    static let subscriptionAlertDays   = "threshold_subscription_days" // Int default 30
 
     // Notifications
     static let dryAlertsEnabled        = "notif_dry_alerts"

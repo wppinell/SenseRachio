@@ -5,6 +5,8 @@ import Foundation
 struct SenseCraftDevice: Codable {
     let deviceEui: String
     let deviceName: String
+    let expiryDate: Date?
+    let daysUntilExpiry: Int?
 }
 
 struct SenseCraftReading: Codable {
@@ -100,6 +102,7 @@ final class SenseCraftAPI {
             throw SenseCraftAPIError.httpError(httpResponse.statusCode)
         }
 
+
         do {
             let decoded = try JSONDecoder().decode(SenseCraftListDevicesResponse.self, from: data)
             if let msg = decoded.msg, decoded.code != "0" {
@@ -109,7 +112,9 @@ final class SenseCraftAPI {
             return items.map { item in
                 SenseCraftDevice(
                     deviceEui: item.deviceEui,
-                    deviceName: item.deviceName ?? item.deviceEui
+                    deviceName: item.deviceName ?? item.deviceEui,
+                    expiryDate: item.expiryDate,
+                    daysUntilExpiry: item.daysUntilExpiry
                 )
             }
         } catch let error as SenseCraftAPIError {

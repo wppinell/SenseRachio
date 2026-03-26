@@ -95,6 +95,13 @@ struct SensorDetailView: View {
                         .padding(.horizontal, DS.Spacing.lg)
                 }
 
+                // Subscription expiry
+                if let days = sensor.daysUntilExpiry {
+                    DSSectionHeader(title: "Subscription")
+                    expiryCard(days: days)
+                        .padding(.horizontal, DS.Spacing.lg)
+                }
+
                 // Settings
                 DSSectionHeader(title: "Settings")
                 settingsCard
@@ -325,6 +332,41 @@ struct SensorDetailView: View {
     }
 
     // MARK: - Settings Card
+
+    @ViewBuilder
+    private func expiryCard(days: Int) -> some View {
+        HStack(spacing: DS.Spacing.md) {
+            Image(systemName: days <= 7 ? "exclamationmark.triangle.fill" : "calendar.badge.clock")
+                .font(.system(size: 13))
+                .foregroundStyle(days <= 7 ? DS.Color.error : days <= 30 ? DS.Color.warning : DS.Color.textTertiary)
+                .frame(width: 28, height: 28)
+                .background((days <= 7 ? DS.Color.error : days <= 30 ? DS.Color.warning : DS.Color.textTertiary).opacity(0.12))
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+
+            VStack(alignment: .leading, spacing: 2) {
+                if days <= 0 {
+                    Text("Subscription expired")
+                        .font(DS.Font.cardTitle)
+                        .foregroundStyle(DS.Color.error)
+                } else if days == 1 {
+                    Text("Expires tomorrow")
+                        .font(DS.Font.cardTitle)
+                        .foregroundStyle(DS.Color.error)
+                } else {
+                    Text("Expires in \(days) days")
+                        .font(DS.Font.cardTitle)
+                        .foregroundStyle(days <= 7 ? DS.Color.error : days <= 30 ? DS.Color.warning : DS.Color.textPrimary)
+                }
+                if let expiry = sensor.subscriptionExpiryDate {
+                    Text(expiry.formatted(date: .abbreviated, time: .omitted))
+                        .font(DS.Font.caption)
+                        .foregroundStyle(DS.Color.textTertiary)
+                }
+            }
+        }
+        .padding(DS.Spacing.lg)
+        .dsCard()
+    }
 
     private var settingsCard: some View {
         VStack(spacing: 0) {

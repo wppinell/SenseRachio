@@ -4,6 +4,7 @@ struct ThresholdsView: View {
     @AppStorage(AppStorageKey.dryThreshold) private var dryThreshold: Double = 25
     @AppStorage(AppStorageKey.lowThreshold) private var lowThreshold: Double = 40
     @AppStorage(AppStorageKey.autoWaterThreshold) private var autoWaterThreshold: Double = 20
+    @AppStorage(AppStorageKey.subscriptionAlertDays) private var subscriptionAlertDays: Int = 30
 
     @State private var showResetConfirmation = false
 
@@ -75,6 +76,21 @@ struct ThresholdsView: View {
             } header: { Text("Visual Preview") }
 
             Section {
+                Stepper(value: $subscriptionAlertDays, in: 7...90, step: 7) {
+                    HStack {
+                        Text("Alert before expiry")
+                            .font(DS.Font.cardBody)
+                        Spacer()
+                        Text("\(subscriptionAlertDays) days")
+                            .font(DS.Font.cardTitle)
+                            .foregroundStyle(DS.Color.warning)
+                            .monospacedDigit()
+                    }
+                }
+            } header: { Text("Subscription Alert") }
+              footer: { Text("Show an alert on the dashboard when a sensor subscription expires within \(subscriptionAlertDays) days.") }
+
+            Section {
                 Button(role: .destructive) {
                     showResetConfirmation = true
                 } label: {
@@ -127,6 +143,7 @@ struct ThresholdsView: View {
         dryThreshold = 25
         lowThreshold = 40
         autoWaterThreshold = 20
+        subscriptionAlertDays = 30
         HapticFeedback.notification(.success)
     }
 }

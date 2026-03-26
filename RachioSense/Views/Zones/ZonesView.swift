@@ -85,7 +85,7 @@ struct ZonesView: View {
         }
         .dsBackground()
         .refreshable {
-            await viewModel.loadZones(modelContext: modelContext)
+            await viewModel.loadZones(modelContext: modelContext, forceRefresh: true)
         }
         .confirmationDialog(
             "Stop All Zones",

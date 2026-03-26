@@ -29,12 +29,14 @@ final class SensorsViewModel {
             for device in devices {
                 if let existing = existingByEui[device.deviceEui] {
                     existing.name = device.deviceName
+                    existing.subscriptionExpiryDate = device.expiryDate
                     updatedConfigs.append(existing)
                 } else {
                     let newConfig = SensorConfig(
                         id: device.deviceEui,
                         name: device.deviceName,
-                        eui: device.deviceEui
+                        eui: device.deviceEui,
+                        subscriptionExpiryDate: device.expiryDate
                     )
                     modelContext.insert(newConfig)
                     updatedConfigs.append(newConfig)

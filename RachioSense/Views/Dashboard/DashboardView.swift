@@ -10,6 +10,7 @@ struct DashboardView: View {
     @AppStorage(AppStorageKey.autoWaterThreshold) private var autoWaterThreshold: Double = 20
     @AppStorage(AppStorageKey.dryThreshold) private var dryThreshold: Double = 25
     @AppStorage(AppStorageKey.lowThreshold) private var highThreshold: Double = 40
+    @AppStorage(AppStorageKey.subscriptionAlertDays) private var subscriptionAlertDays: Int = 30
 
     @Query private var sensorConfigs: [SensorConfig]
     
@@ -27,6 +28,17 @@ struct DashboardView: View {
         viewModel.sensorReadings.filter { !hiddenEUIs.contains($0.eui) }
     }
     
+    // Sensors expiring within configured alert window
+    private var expiringSensors: [(name: String, days: Int)] {
+        sensorConfigs
+            .filter { !$0.isHiddenFromGraphs }
+            .compactMap { sensor -> (name: String, days: Int)? in
+                guard let days = sensor.daysUntilExpiry, days <= subscriptionAlertDays else { return nil }
+                return (name: sensor.displayName, days: days)
+            }
+            .sorted { $0.days < $1.days }
+    }
+
     // Sensor lists by status (visible only)
     private var criticalSensors: [SensorReading] {
         visibleReadings.filter { $0.moisture < autoWaterThreshold }.sorted { $0.moisture < $1.moisture }
@@ -111,9 +123,9 @@ struct DashboardView: View {
                     )
                     .padding(.horizontal, DS.Spacing.lg)
                 } else {
-                    moistureCard
-                    statusCard
                     weatherCard
+                    alertsCard
+                    statusCard
                 }
 
                 Spacer(minLength: DS.Spacing.xxl)
@@ -125,27 +137,17 @@ struct DashboardView: View {
         }
     }
 
-    // MARK: - MOISTURE Card
+    // MARK: - ALERTS Card
 
-    private var moistureCard: some View {
+    private var alertsCard: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                Text("MOISTURE")
-                    .font(DS.Font.sectionHeader)
-                    .foregroundStyle(DS.Color.textSecondary)
-                    .tracking(0.8)
-                Spacer()
-                Button {
-                    appState.selectedTab = 1
-                } label: {
-                    Text("See All →")
-                        .font(DS.Font.label)
-                        .foregroundStyle(DS.Color.accent)
-                }
-            }
-            .padding(.horizontal, DS.Spacing.lg)
-            .padding(.top, DS.Spacing.xl)
-            .padding(.bottom, DS.Spacing.xs)
+            Text("ALERTS")
+                .font(DS.Font.sectionHeader)
+                .foregroundStyle(DS.Color.textSecondary)
+                .tracking(0.8)
+                .padding(.horizontal, DS.Spacing.lg)
+                .padding(.top, DS.Spacing.xl)
+                .padding(.bottom, DS.Spacing.xs)
 
             VStack(alignment: .leading, spacing: DS.Spacing.md) {
                 if visibleReadings.isEmpty {
@@ -156,60 +158,31 @@ struct DashboardView: View {
                             .font(DS.Font.caption)
                             .foregroundStyle(DS.Color.textSecondary)
                     }
+                } else if criticalSensors.isEmpty && drySensors.isEmpty && highSensors.isEmpty && expiringSensors.isEmpty && viewModel.rachioRateLimitMinutes == nil {
+                    // All OK — show a clean green message
+                    HStack(spacing: DS.Spacing.xs) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundStyle(DS.Color.online)
+                        Text("All \(okCount) sensors OK")
+                            .font(DS.Font.cardBody)
+                            .foregroundStyle(DS.Color.textSecondary)
+                    }
                 } else {
-                    // Critical sensors
                     if !criticalSensors.isEmpty {
-                        SensorStatusSection(
-                            title: "Critical",
-                            icon: "exclamationmark.triangle.fill",
-                            color: DS.Color.error,
-                            sensors: criticalSensors,
-                            nameByEUI: sensorNameByEUI
-                        )
+                        SensorStatusSection(title: "Critical", icon: "exclamationmark.triangle.fill", color: DS.Color.error, sensors: criticalSensors, nameByEUI: sensorNameByEUI)
                     }
-                    
-                    // Dry sensors
                     if !drySensors.isEmpty {
-                        SensorStatusSection(
-                            title: "Dry",
-                            icon: "exclamationmark.circle.fill",
-                            color: DS.Color.warning,
-                            sensors: drySensors,
-                            nameByEUI: sensorNameByEUI
-                        )
+                        SensorStatusSection(title: "Dry", icon: "exclamationmark.circle.fill", color: DS.Color.warning, sensors: drySensors, nameByEUI: sensorNameByEUI)
                     }
-                    
-                    // High sensors
                     if !highSensors.isEmpty {
-                        SensorStatusSection(
-                            title: "High",
-                            icon: "drop.fill",
-                            color: Color(hex: "0EA5E9"),
-                            sensors: highSensors,
-                            nameByEUI: sensorNameByEUI
-                        )
+                        SensorStatusSection(title: "High", icon: "drop.fill", color: Color(hex: "0EA5E9"), sensors: highSensors, nameByEUI: sensorNameByEUI)
                     }
-                    
-                    // OK summary (just count, not individual sensors)
-                    if okCount > 0 && criticalSensors.isEmpty && drySensors.isEmpty && highSensors.isEmpty {
-                        HStack(spacing: DS.Spacing.xs) {
-                            Image(systemName: "checkmark.circle.fill")
-                                .foregroundStyle(DS.Color.online)
-                            Text("All \(okCount) sensors OK")
-                                .font(DS.Font.cardBody)
-                                .foregroundStyle(DS.Color.textSecondary)
-                        }
-                    } else if okCount > 0 {
-                        HStack(spacing: DS.Spacing.xs) {
-                            Image(systemName: "checkmark.circle.fill")
-                                .font(.system(size: 11))
-                                .foregroundStyle(DS.Color.online)
-                            Text("\(okCount) OK")
-                                .font(DS.Font.caption)
-                                .foregroundStyle(DS.Color.textTertiary)
-                        }
+                    if !expiringSensors.isEmpty {
+                        ExpiryAlertSection(sensors: expiringSensors)
                     }
-
+                    if let mins = viewModel.rachioRateLimitMinutes {
+                        RateLimitAlertSection(minutesRemaining: mins)
+                    }
                 }
             }
             .padding(DS.Spacing.lg)
@@ -286,10 +259,17 @@ struct DashboardView: View {
                                 .font(DS.Font.caption)
                                 .foregroundStyle(viewModel.rachioConnected ? DS.Color.online : DS.Color.error)
                         }
-                        if let device = viewModel.zones.first {
-                            Text("\(device.name) · \(viewModel.zones.flatMap(\.zones).filter(\.enabled).count) zones")
-                                .font(DS.Font.caption)
-                                .foregroundStyle(DS.Color.textSecondary)
+                        HStack(spacing: DS.Spacing.xs) {
+                            if let device = viewModel.zones.first {
+                                Text("\(device.name) · \(viewModel.zones.flatMap(\.zones).filter(\.enabled).count) zones")
+                                    .font(DS.Font.caption)
+                                    .foregroundStyle(DS.Color.textSecondary)
+                            }
+                            if let remaining = viewModel.rachioApiRemaining, let total = viewModel.rachioApiTotal {
+                                Text("· \(remaining)/\(total) API")
+                                    .font(DS.Font.caption)
+                                    .foregroundStyle(remaining < 100 ? DS.Color.warning : DS.Color.textTertiary)
+                            }
                         }
                     }
                 }
@@ -422,6 +402,83 @@ private struct WeatherForecastCard: View {
         case 95, 96, 99: return .purple  // Thunderstorm
         default: return DS.Color.textSecondary
         }
+    }
+}
+
+// MARK: - Rate Limit Alert Section
+
+private struct RateLimitAlertSection: View {
+    let minutesRemaining: Int
+    
+    var body: some View {
+        HStack(spacing: DS.Spacing.sm) {
+            Image(systemName: "exclamationmark.icloud.fill")
+                .font(.system(size: 13))
+                .foregroundStyle(DS.Color.error)
+                .frame(width: 28, height: 28)
+                .background(DS.Color.error.opacity(0.12))
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+            
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Rachio API Rate Limited")
+                    .font(DS.Font.cardTitle)
+                    .foregroundStyle(DS.Color.error)
+                
+                if minutesRemaining >= 60 {
+                    let hours = minutesRemaining / 60
+                    let mins = minutesRemaining % 60
+                    Text("Resets in \(hours)h \(mins)m")
+                        .font(DS.Font.caption)
+                        .foregroundStyle(DS.Color.textSecondary)
+                } else {
+                    Text("Resets in \(minutesRemaining) min")
+                        .font(DS.Font.caption)
+                        .foregroundStyle(DS.Color.textSecondary)
+                }
+            }
+            
+            Spacer()
+        }
+        .padding(DS.Spacing.sm)
+        .background(DS.Color.error.opacity(0.06))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+    }
+}
+
+// MARK: - Expiry Alert Section
+
+private struct ExpiryAlertSection: View {
+    let sensors: [(name: String, days: Int)]
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: DS.Spacing.xs) {
+            HStack(spacing: DS.Spacing.xs) {
+                Image(systemName: "calendar.badge.exclamationmark")
+                    .font(.system(size: 11))
+                    .foregroundStyle(DS.Color.warning)
+                Text("Subscription Expiring")
+                    .font(DS.Font.label)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(DS.Color.warning)
+            }
+            
+            ForEach(sensors, id: \.name) { sensor in
+                HStack {
+                    Text(sensor.name)
+                        .font(DS.Font.cardBody)
+                        .foregroundStyle(DS.Color.textPrimary)
+                        .lineLimit(1)
+                    Spacer(minLength: DS.Spacing.sm)
+                    Text(sensor.days <= 0 ? "Expired" : sensor.days == 1 ? "Tomorrow" : "\(sensor.days)d")
+                        .font(DS.Font.cardTitle)
+                        .foregroundStyle(sensor.days <= 7 ? DS.Color.error : DS.Color.warning)
+                        .monospacedDigit()
+                }
+            }
+        }
+        .padding(DS.Spacing.sm)
+        .background(DS.Color.warning.opacity(0.06))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
     }
 }
 

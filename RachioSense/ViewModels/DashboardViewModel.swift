@@ -30,6 +30,9 @@ final class DashboardViewModel {
 
     var senseCraftConnected: Bool = false
     var rachioConnected: Bool = false
+    var rachioRateLimitMinutes: Int? = nil
+    var rachioApiRemaining: Int? = nil
+    var rachioApiTotal: Int? = nil
     var lastSyncDate: Date? = nil
     var forecast: WeatherAPI.Forecast? = nil
 
@@ -57,6 +60,16 @@ final class DashboardViewModel {
             // Fetch sensors if credentials exist
             if KeychainService.shared.load(forKey: KeychainKey.senseCraftAPIKey) != nil {
                 let devices = try await SenseCraftAPI.shared.listDevices()
+                
+                // Update expiry dates in SwiftData
+                let existingConfigs = (try? modelContext.fetch(FetchDescriptor<SensorConfig>())) ?? []
+                for device in devices {
+                    if let config = existingConfigs.first(where: { $0.eui == device.deviceEui }) {
+                        config.subscriptionExpiryDate = device.expiryDate
+                    }
+                }
+                _ = try? modelContext.save()
+                
                 let readingData = await fetchReadingData(for: devices)
                 
                 if !readingData.isEmpty {
@@ -76,8 +89,20 @@ final class DashboardViewModel {
 
             // Fetch zones if credentials exist
             if KeychainService.shared.load(forKey: KeychainKey.rachioAPIKey) != nil {
-                self.zones = (try? await RachioAPI.shared.getDevices()) ?? []
-                self.rachioConnected = true
+                do {
+                    self.zones = try await RachioAPI.shared.getDevices()
+                    self.rachioConnected = true
+                    self.rachioRateLimitMinutes = nil
+                    self.rachioApiRemaining = RachioAPI.shared.rateLimitRemaining
+                    self.rachioApiTotal = RachioAPI.shared.rateLimitTotal
+                } catch {
+                    print("[Dashboard] Rachio fetch failed: \(error.localizedDescription)")
+                    self.zones = []
+                    self.rachioConnected = false
+                    self.rachioRateLimitMinutes = RachioAPI.shared.rateLimitResetsInMinutes
+                    self.rachioApiRemaining = RachioAPI.shared.rateLimitRemaining
+                    self.rachioApiTotal = RachioAPI.shared.rateLimitTotal
+                }
             } else {
                 self.zones = []
                 self.rachioConnected = false

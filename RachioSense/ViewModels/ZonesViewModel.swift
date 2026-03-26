@@ -11,11 +11,11 @@ final class ZonesViewModel {
 
     // MARK: - Load Zones
 
-    func loadZones(modelContext: ModelContext) async {
+    func loadZones(modelContext: ModelContext, forceRefresh: Bool = false) async {
         await MainActor.run { isLoading = true; errorMessage = nil }
 
         do {
-            let fetchedDevices = try await RachioAPI.shared.getDevices()
+            let fetchedDevices = try await RachioAPI.shared.getDevices(forceRefresh: forceRefresh)
 
             // Upsert ZoneConfigs into SwiftData
             let descriptor = FetchDescriptor<ZoneConfig>()
