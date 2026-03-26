@@ -702,6 +702,80 @@ X-RateLimit-Reset: 2026-03-27T00:00:00Z
 
 ---
 
+## 🚀 Future Enhancements
+
+### Smart Automation
+| Enhancement | Description | Complexity |
+|-------------|-------------|------------|
+| **Predictive watering** | ML model predicts when soil will go dry based on weather + historical data | High |
+| **Weather-adjusted thresholds** | Auto-lower dry threshold when rain is forecast | Medium |
+| **Seasonal profiles** | Different thresholds for summer vs winter | Low |
+| **Multi-zone auto-water** | Water multiple linked zones when any sensor goes critical | Medium |
+| **Watering windows** | Only auto-water during specific hours (e.g., early morning) | Low |
+| **Cooldown periods** | Prevent auto-water from running too frequently | Low |
+
+### Advanced Analytics
+| Enhancement | Description | Complexity |
+|-------------|-------------|------------|
+| **Moisture trends** | Weekly/monthly trend charts with averages | Medium |
+| **Water usage tracking** | Estimate gallons used per zone based on flow rate | Medium |
+| **Correlation analysis** | Show how watering events affect moisture levels | High |
+| **Anomaly detection** | Alert when sensor readings are unusual | High |
+| **Soil health score** | Composite score based on moisture consistency | Medium |
+| **Export to CSV/PDF** | Generate reports for date ranges | Low |
+
+### User Experience
+| Enhancement | Description | Complexity |
+|-------------|-------------|------------|
+| **Onboarding wizard** | Guided setup for first-time users | Medium |
+| **Quick actions** | 3D Touch / long-press shortcuts on sensor cards | Low |
+| **Customizable dashboard** | Drag-to-reorder cards, hide/show sections | Medium |
+| **Dark mode graphs** | Optimized colors for dark theme | Low |
+| **Accessibility** | VoiceOver support, Dynamic Type | Medium |
+| **Localization** | Spanish, French, German translations | Medium |
+
+### Platform Expansion
+| Enhancement | Description | Complexity |
+|-------------|-------------|------------|
+| **iPad layout** | Multi-column layout for larger screens | Medium |
+| **macOS app** | Native Mac app via Catalyst or SwiftUI | Medium |
+| **Apple Watch app** | Full app with complications and glances | High |
+| **Home Assistant integration** | MQTT or REST API for HA sensors | Medium |
+| **Shortcuts app actions** | Expose actions for iOS Shortcuts | Low |
+| **Live Activities** | Lock screen widget showing active watering | Medium |
+
+### Integrations
+| Enhancement | Description | Complexity |
+|-------------|-------------|------------|
+| **Additional controllers** | Support for Hunter, Rain Bird, Orbit | High |
+| **Additional sensors** | Support for Ecowitt, Ambient Weather | High |
+| **Weather services** | Options for Weather.com, OpenWeatherMap | Low |
+| **Calendar integration** | Show watering schedule in iOS Calendar | Medium |
+| **HomeKit** | Expose sensors and zones to Home app | High |
+| **Matter support** | Future-proof smart home standard | High |
+
+### Backend & Sync
+| Enhancement | Description | Complexity |
+|-------------|-------------|------------|
+| **CloudKit sync** | Sync settings and data across devices | High |
+| **Shared households** | Multiple users managing same garden | High |
+| **Offline mode** | Full functionality without internet | Medium |
+| **Background fetch** | Reliable background data refresh | Medium |
+| **Push notifications via APNs** | Server-triggered alerts | High |
+| **Web dashboard** | View-only web interface | High |
+
+### Developer & Power User
+| Enhancement | Description | Complexity |
+|-------------|-------------|------------|
+| **Debug console** | In-app log viewer | Low |
+| **API playground** | Test API calls in-app | Medium |
+| **Custom thresholds per sensor** | Override global thresholds | Low |
+| **Webhook support** | POST to URL on events | Medium |
+| **IFTTT integration** | Trigger applets on sensor events | Medium |
+| **Scriptable actions** | JavaScript automation | High |
+
+---
+
 ## 🐛 Known Issues & Technical Debt
 
 ### Active Issues
