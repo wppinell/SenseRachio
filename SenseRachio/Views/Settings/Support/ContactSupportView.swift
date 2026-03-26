@@ -5,7 +5,7 @@ struct ContactSupportView: View {
         List {
             Section {
                 DSInlineBanner(
-                    message: "SenseRachio is an open-source community project. Support is provided on a best-effort basis.",
+                    message: "RachioSense is an open-source community project. Support is provided on a best-effort basis.",
                     style: .info
                 )
                 .listRowBackground(Color.clear)

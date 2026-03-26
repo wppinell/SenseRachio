@@ -210,7 +210,7 @@ struct DiagnosticsView: View {
 
     private func copyDebugLog() {
         let log = """
-        SenseRachio Diagnostic Report
+        RachioSense Diagnostic Report
         ==============================
         Date: \(Date())
         App Version: \(appVersion)

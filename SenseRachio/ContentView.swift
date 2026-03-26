@@ -1,6 +1,6 @@
 import SwiftUI
 
-// ContentView is the root entry point — the actual routing logic lives in SenseRachioApp.
+// ContentView is the root entry point — the actual routing logic lives in RachioSenseApp.
 // This file is kept for Xcode template compatibility and preview purposes.
 struct ContentView: View {
     @EnvironmentObject private var appState: AppState

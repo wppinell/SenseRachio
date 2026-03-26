@@ -4,7 +4,7 @@ import BackgroundTasks
 import UserNotifications
 
 @main
-struct SenseRachioApp: App {
+struct RachioSenseApp: App {
     let modelContainer: ModelContainer
     @StateObject private var appState = AppState()
 

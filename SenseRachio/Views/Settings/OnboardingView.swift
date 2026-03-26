@@ -18,7 +18,7 @@ struct OnboardingView: View {
                             .foregroundStyle(DS.Color.accent)
                     }
                     VStack(spacing: DS.Spacing.sm) {
-                        Text("Welcome to SenseRachio")
+                        Text("Welcome to RachioSense")
                             .font(DS.Font.pageTitle)
                             .foregroundStyle(DS.Color.textPrimary)
                             .multilineTextAlignment(.center)

@@ -24,7 +24,7 @@ struct AboutView: View {
                                 .foregroundStyle(DS.Color.accent)
                         }
                         VStack(spacing: DS.Spacing.xs) {
-                            Text("SenseRachio")
+                            Text("RachioSense")
                                 .font(DS.Font.cardTitle)
                                 .foregroundStyle(DS.Color.textPrimary)
                             Text("Version \(version)")
@@ -115,7 +115,7 @@ private struct OpenSourceLicensesView: View {
         List {
             Section {
                 DSInlineBanner(
-                    message: "SenseRachio uses only Apple's built-in frameworks and has no third-party dependencies.",
+                    message: "RachioSense uses only Apple's built-in frameworks and has no third-party dependencies.",
                     style: .info
                 )
                 .listRowBackground(Color.clear)
