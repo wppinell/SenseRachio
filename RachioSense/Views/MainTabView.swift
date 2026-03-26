@@ -23,9 +23,13 @@ struct MainTabView: View {
                     .tabItem { Label("Zones", systemImage: "drop.fill") }
                     .tag(2)
 
+                GraphsView()
+                    .tabItem { Label("Graphs", systemImage: "chart.line.uptrend.xyaxis") }
+                    .tag(3)
+
                 SettingsView(isOnboarding: false)
                     .tabItem { Label("Settings", systemImage: "gearshape.fill") }
-                    .tag(3)
+                    .tag(4)
             }
             .tint(accentColor)
 

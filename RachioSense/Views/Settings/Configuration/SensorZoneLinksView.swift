@@ -126,9 +126,11 @@ struct SensorLinkDetailView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
 
+    @State private var sensorName: String = ""
     @State private var selectedZoneId: String = ""
     @State private var threshold: Double = 30
     @State private var autoWaterEnabled: Bool = false
+    @State private var isHiddenFromGraphs: Bool = false
 
     private var linkedZone: ZoneConfig? {
         guard !selectedZoneId.isEmpty else { return nil }
@@ -140,10 +142,11 @@ struct SensorLinkDetailView: View {
             if let sensor {
                 Section {
                     HStack {
-                        Text("Sensor")
+                        Text("Name")
                             .foregroundStyle(DS.Color.textSecondary)
                         Spacer()
-                        Text(sensor.name)
+                        TextField("Friendly name", text: $sensorName)
+                            .multilineTextAlignment(.trailing)
                             .foregroundStyle(DS.Color.textPrimary)
                     }
                     HStack {
@@ -200,6 +203,15 @@ struct SensorLinkDetailView: View {
             } header: { Text("Automation") }
 
             Section {
+                Toggle("Show in Graphs", isOn: Binding(
+                    get: { !isHiddenFromGraphs },
+                    set: { isHiddenFromGraphs = !$0 }
+                ))
+                .tint(DS.Color.accent)
+            } header: { Text("Graphs") }
+              footer: { Text("Hidden sensors are excluded from all graphs and Mission Control.") }
+
+            Section {
                 Button("Save Link") {
                     saveLink()
                 }
@@ -220,18 +232,24 @@ struct SensorLinkDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
             if let sensor {
+                sensorName = sensor.name
                 selectedZoneId = sensor.linkedZoneId ?? ""
                 threshold = sensor.moistureThreshold ?? 30
                 autoWaterEnabled = sensor.autoWaterEnabled
+                isHiddenFromGraphs = sensor.isHiddenFromGraphs
             }
         }
     }
 
     private func saveLink() {
         guard let sensor else { return }
+        if !sensorName.trimmingCharacters(in: .whitespaces).isEmpty {
+            sensor.name = sensorName.trimmingCharacters(in: .whitespaces)
+        }
         sensor.linkedZoneId = selectedZoneId.isEmpty ? nil : selectedZoneId
         sensor.moistureThreshold = threshold
         sensor.autoWaterEnabled = autoWaterEnabled
+        sensor.isHiddenFromGraphs = isHiddenFromGraphs
         try? modelContext.save()
         HapticFeedback.notification(.success)
         dismiss()

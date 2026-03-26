@@ -10,9 +10,11 @@ class SensorConfig {
     var moistureThreshold: Double?
     var autoWaterEnabled: Bool
     var groupId: String?
+    var isHiddenFromGraphs: Bool
 
     init(id: String, name: String, eui: String, linkedZoneId: String? = nil,
-         moistureThreshold: Double? = nil, autoWaterEnabled: Bool = false, groupId: String? = nil) {
+         moistureThreshold: Double? = nil, autoWaterEnabled: Bool = false,
+         groupId: String? = nil, isHiddenFromGraphs: Bool = false) {
         self.id = id
         self.name = name
         self.eui = eui
@@ -20,6 +22,7 @@ class SensorConfig {
         self.moistureThreshold = moistureThreshold
         self.autoWaterEnabled = autoWaterEnabled
         self.groupId = groupId
+        self.isHiddenFromGraphs = isHiddenFromGraphs
     }
 }
 
