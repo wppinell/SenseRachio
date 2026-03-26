@@ -7,7 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		A100000000000000000000211 /* SenseRachioApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000210 /* SenseRachioApp.swift */; };
+		A100000000000000000000211 /* RachioSenseApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000210 /* RachioSenseApp.swift */; };
 		A100000000000000000000213 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000212 /* ContentView.swift */; };
 		A100000000000000000000215 /* SwiftDataModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000214 /* SwiftDataModels.swift */; };
 		A100000000000000000000217 /* APIModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000216 /* APIModels.swift */; };
@@ -56,7 +56,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		A100000000000000000000210 /* SenseRachioApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SenseRachioApp.swift; sourceTree = "<group>"; };
+		A100000000000000000000210 /* RachioSenseApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RachioSenseApp.swift; sourceTree = "<group>"; };
 		A100000000000000000000212 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		A100000000000000000000214 /* SwiftDataModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftDataModels.swift; sourceTree = "<group>"; };
 		A100000000000000000000216 /* APIModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIModels.swift; sourceTree = "<group>"; };
@@ -79,8 +79,8 @@
 		A100000000000000000000238 /* BackgroundRefreshManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundRefreshManager.swift; sourceTree = "<group>"; };
 		A10000000000000000000023A /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A10000000000000000000023C /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		A10000000000000000000248 /* SenseRachio.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = SenseRachio.entitlements; sourceTree = "<group>"; };
-		A100000000000000000000247 /* SenseRachio.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SenseRachio.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A10000000000000000000248 /* RachioSense.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = RachioSense.entitlements; sourceTree = "<group>"; };
+		A100000000000000000000247 /* RachioSense.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = RachioSense.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A10000000000000000000250 /* DesignSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignSystem.swift; sourceTree = "<group>"; };
 		A10000000000000000000252 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		A10000000000000000000254 /* AccountSenseCraftView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountSenseCraftView.swift; sourceTree = "<group>"; };
@@ -121,7 +121,7 @@
 		A1000000000000000000000B = {
 			isa = PBXGroup;
 			children = (
-				A10000000000000000000023D /* SenseRachio */,
+				A10000000000000000000023D /* RachioSense */,
 				A1000000000000000000000C /* Products */,
 			);
 			sourceTree = "<group>";
@@ -129,19 +129,19 @@
 		A1000000000000000000000C /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				A100000000000000000000247 /* SenseRachio.app */,
+				A100000000000000000000247 /* RachioSense.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
 		};
-		A10000000000000000000023D /* SenseRachio */ = {
+		A10000000000000000000023D /* RachioSense */ = {
 			isa = PBXGroup;
 			children = (
-				A100000000000000000000210 /* SenseRachioApp.swift */,
+				A100000000000000000000210 /* RachioSenseApp.swift */,
 				A100000000000000000000212 /* ContentView.swift */,
 				A10000000000000000000023A /* Assets.xcassets */,
 				A10000000000000000000023C /* Info.plist */,
-				A10000000000000000000248 /* SenseRachio.entitlements */,
+				A10000000000000000000248 /* RachioSense.entitlements */,
 				A10000000000000000000023E /* Models */,
 				A10000000000000000000023F /* Services */,
 				A100000000000000000000240 /* ViewModels */,
@@ -149,7 +149,7 @@
 				A100000000000000000000246 /* Background */,
 				A10000000000000000000281 /* DesignSystem */,
 			);
-			path = SenseRachio;
+			path = RachioSense;
 			sourceTree = "<group>";
 		};
 		A10000000000000000000023E /* Models */ = {
@@ -312,9 +312,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		A1000000000000000000000D /* SenseRachio */ = {
+		A1000000000000000000000D /* RachioSense */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = A1000000000000000000000F /* Build configuration list for PBXNativeTarget "SenseRachio" */;
+			buildConfigurationList = A1000000000000000000000F /* Build configuration list for PBXNativeTarget "RachioSense" */;
 			buildPhases = (
 				A1000000000000000000001E /* Sources */,
 				A1000000000000000000001F /* Resources */,
@@ -324,9 +324,9 @@
 			);
 			dependencies = (
 			);
-			name = SenseRachio;
-			productName = SenseRachio;
-			productReference = A100000000000000000000247 /* SenseRachio.app */;
+			name = RachioSense;
+			productName = RachioSense;
+			productReference = A100000000000000000000247 /* RachioSense.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -344,7 +344,7 @@
 					};
 				};
 			};
-			buildConfigurationList = A1000000000000000000000E /* Build configuration list for PBXProject "SenseRachio" */;
+			buildConfigurationList = A1000000000000000000000E /* Build configuration list for PBXProject "RachioSense" */;
 			compatibilityVersion = "Xcode 14.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
@@ -357,7 +357,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				A1000000000000000000000D /* SenseRachio */,
+				A1000000000000000000000D /* RachioSense */,
 			);
 		};
 /* End PBXProject section */
@@ -378,7 +378,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				A100000000000000000000211 /* SenseRachioApp.swift in Sources */,
+				A100000000000000000000211 /* RachioSenseApp.swift in Sources */,
 				A100000000000000000000213 /* ContentView.swift in Sources */,
 				A100000000000000000000215 /* SwiftDataModels.swift in Sources */,
 				A100000000000000000000217 /* APIModels.swift in Sources */,
@@ -551,20 +551,20 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = SenseRachio/SenseRachio.entitlements;
+				CODE_SIGN_ENTITLEMENTS = RachioSense/RachioSense.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = WQ4HK8NXS9;
 				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = SenseRachio/Info.plist;
+				INFOPLIST_FILE = RachioSense/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.senserachio.app;
-				PRODUCT_NAME = SenseRachio;
+				PRODUCT_BUNDLE_IDENTIFIER = com.rachiosense.app;
+				PRODUCT_NAME = RachioSense;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 1;
@@ -576,20 +576,20 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = SenseRachio/SenseRachio.entitlements;
+				CODE_SIGN_ENTITLEMENTS = RachioSense/RachioSense.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = WQ4HK8NXS9;
 				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = SenseRachio/Info.plist;
+				INFOPLIST_FILE = RachioSense/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.senserachio.app;
-				PRODUCT_NAME = SenseRachio;
+				PRODUCT_BUNDLE_IDENTIFIER = com.rachiosense.app;
+				PRODUCT_NAME = RachioSense;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 1;
@@ -599,7 +599,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		A1000000000000000000000E /* Build configuration list for PBXProject "SenseRachio" */ = {
+		A1000000000000000000000E /* Build configuration list for PBXProject "RachioSense" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				A1000000000000000000001A /* Debug */,
@@ -608,7 +608,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		A1000000000000000000000F /* Build configuration list for PBXNativeTarget "SenseRachio" */ = {
+		A1000000000000000000000F /* Build configuration list for PBXNativeTarget "RachioSense" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				A1000000000000000000001C /* Debug */,

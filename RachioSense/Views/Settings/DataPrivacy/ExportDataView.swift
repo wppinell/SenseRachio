@@ -116,7 +116,7 @@ struct ExportDataView: View {
                 data = try generateJSON()
             }
 
-            let fileName = "senserachio_export_\(dateString()).\(format)"
+            let fileName = "rachiosense_export_\(dateString()).\(format)"
             let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
             try data.write(to: tempURL)
             exportURL = tempURL

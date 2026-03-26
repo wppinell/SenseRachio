@@ -49,14 +49,14 @@ final class KeychainService {
         let deleteQuery: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrAccount as String: key,
-            kSecAttrService as String: Bundle.main.bundleIdentifier ?? "com.senserachio.app"
+            kSecAttrService as String: Bundle.main.bundleIdentifier ?? "com.rachiosense.app"
         ]
         SecItemDelete(deleteQuery as CFDictionary)
 
         let addQuery: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrAccount as String: key,
-            kSecAttrService as String: Bundle.main.bundleIdentifier ?? "com.senserachio.app",
+            kSecAttrService as String: Bundle.main.bundleIdentifier ?? "com.rachiosense.app",
             kSecValueData as String: data,
             kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
         ]
@@ -74,7 +74,7 @@ final class KeychainService {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrAccount as String: key,
-            kSecAttrService as String: Bundle.main.bundleIdentifier ?? "com.senserachio.app",
+            kSecAttrService as String: Bundle.main.bundleIdentifier ?? "com.rachiosense.app",
             kSecReturnData as String: true,
             kSecMatchLimit as String: kSecMatchLimitOne
         ]
@@ -97,7 +97,7 @@ final class KeychainService {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrAccount as String: key,
-            kSecAttrService as String: Bundle.main.bundleIdentifier ?? "com.senserachio.app"
+            kSecAttrService as String: Bundle.main.bundleIdentifier ?? "com.rachiosense.app"
         ]
 
         let status = SecItemDelete(query as CFDictionary)

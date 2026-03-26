@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>SenseRachio</string>
+	<string>RachioSense</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -41,7 +41,7 @@
 	<false/>
 	<key>BGTaskSchedulerPermittedIdentifiers</key>
 	<array>
-		<string>com.senserachio.app.refresh</string>
+		<string>com.rachiosense.app.refresh</string>
 	</array>
 	<key>UIBackgroundModes</key>
 	<array>
@@ -49,7 +49,7 @@
 		<string>processing</string>
 	</array>
 	<key>NSUserNotificationUsageDescription</key>
-	<string>SenseRachio sends you alerts when soil moisture drops below your configured thresholds so you know when to water your plants.</string>
+	<string>RachioSense sends you alerts when soil moisture drops below your configured thresholds so you know when to water your plants.</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsArbitraryLoads</key>

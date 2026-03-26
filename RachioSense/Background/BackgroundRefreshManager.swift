@@ -5,7 +5,7 @@ import SwiftData
 final class BackgroundRefreshManager {
     static let shared = BackgroundRefreshManager()
 
-    private let taskIdentifier = "com.senserachio.app.refresh"
+    private let taskIdentifier = "com.rachiosense.app.refresh"
     private let refreshInterval: TimeInterval = 10 * 60 // 10 minutes
 
     private init() {}
