@@ -133,24 +133,50 @@ struct SensorRowView: View {
                 DSMoistureBar(value: moisture)
             }
 
-            // Threshold indicator using global thresholds
+            // Status indicator — show for critical, dry, or high
             if hasReading {
-                let threshold = sensor.autoWaterEnabled ? autoWaterThreshold : dryThreshold
-                HStack(spacing: DS.Spacing.xs) {
-                    Image(systemName: moisture < threshold ? "exclamationmark.circle.fill" : "checkmark.circle.fill")
-                        .font(.system(size: 11))
-                        .foregroundStyle(moisture < threshold ? DS.Color.error : DS.Color.online)
-                    Text("\(sensor.autoWaterEnabled ? "Auto-water" : "Dry alert"): \(Int(threshold))%")
-                        .font(DS.Font.footnote)
-                        .foregroundStyle(DS.Color.textSecondary)
-
-                    if sensor.autoWaterEnabled, sensor.linkedZoneId != nil {
-                        Spacer()
-                        Label("Auto", systemImage: "drop.fill")
+                let isCritical = moisture < autoWaterThreshold
+                let isDry = moisture < dryThreshold
+                let isHigh = moisture >= highThreshold
+                
+                if isCritical {
+                    // Critical — needs water now
+                    HStack(spacing: DS.Spacing.xs) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.system(size: 11))
+                            .foregroundStyle(DS.Color.error)
+                        Text("Critical")
                             .font(DS.Font.footnote)
-                            .foregroundStyle(DS.Color.accent)
+                            .foregroundStyle(DS.Color.error)
+                        if sensor.autoWaterEnabled, sensor.linkedZoneId != nil {
+                            Spacer()
+                            Label("Auto", systemImage: "drop.fill")
+                                .font(DS.Font.footnote)
+                                .foregroundStyle(DS.Color.accent)
+                        }
+                    }
+                } else if isDry {
+                    // Dry — getting low
+                    HStack(spacing: DS.Spacing.xs) {
+                        Image(systemName: "exclamationmark.circle.fill")
+                            .font(.system(size: 11))
+                            .foregroundStyle(DS.Color.warning)
+                        Text("Dry")
+                            .font(DS.Font.footnote)
+                            .foregroundStyle(DS.Color.warning)
+                    }
+                } else if isHigh {
+                    // High — well watered
+                    HStack(spacing: DS.Spacing.xs) {
+                        Image(systemName: "drop.fill")
+                            .font(.system(size: 11))
+                            .foregroundStyle(Color(hex: "0EA5E9"))
+                        Text("High")
+                            .font(DS.Font.footnote)
+                            .foregroundStyle(Color(hex: "0EA5E9"))
                     }
                 }
+                // If OK (between dry and high), show nothing — clean row
             }
         }
         .padding(DS.Spacing.lg)

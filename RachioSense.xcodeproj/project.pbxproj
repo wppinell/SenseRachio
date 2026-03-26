@@ -13,6 +13,7 @@
 		A100000000000000000000217 /* APIModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000216 /* APIModels.swift */; };
 		A100000000000000000000219 /* KeychainService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000218 /* KeychainService.swift */; };
 		A10000000000000000000021B /* SenseCraftAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000021A /* SenseCraftAPI.swift */; };
+		A100000000000000000000400 /* WeatherAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000401 /* WeatherAPI.swift */; };
 		A1000000000000000000002F1 /* GraphDataPrefetcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000002F0 /* GraphDataPrefetcher.swift */; };
 		A10000000000000000000021D /* RachioAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000021C /* RachioAPI.swift */; };
 		A10000000000000000000021F /* NotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000021E /* NotificationService.swift */; };
@@ -66,6 +67,7 @@
 		A100000000000000000000216 /* APIModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIModels.swift; sourceTree = "<group>"; };
 		A100000000000000000000218 /* KeychainService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainService.swift; sourceTree = "<group>"; };
 		A10000000000000000000021A /* SenseCraftAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SenseCraftAPI.swift; sourceTree = "<group>"; };
+		A100000000000000000000401 /* WeatherAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeatherAPI.swift; sourceTree = "<group>"; };
 		A1000000000000000000002F0 /* GraphDataPrefetcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GraphDataPrefetcher.swift; sourceTree = "<group>"; };
 		A10000000000000000000021C /* RachioAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RachioAPI.swift; sourceTree = "<group>"; };
 		A10000000000000000000021E /* NotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationService.swift; sourceTree = "<group>"; };
@@ -174,6 +176,7 @@
 			children = (
 				A100000000000000000000218 /* KeychainService.swift */,
 				A10000000000000000000021A /* SenseCraftAPI.swift */,
+				A100000000000000000000401 /* WeatherAPI.swift */,
 				A10000000000000000000021C /* RachioAPI.swift */,
 				A1000000000000000000002F0 /* GraphDataPrefetcher.swift */,
 				A10000000000000000000021E /* NotificationService.swift */,
@@ -404,6 +407,7 @@
 				A100000000000000000000217 /* APIModels.swift in Sources */,
 				A100000000000000000000219 /* KeychainService.swift in Sources */,
 				A10000000000000000000021B /* SenseCraftAPI.swift in Sources */,
+				A100000000000000000000400 /* WeatherAPI.swift in Sources */,
 				A10000000000000000000021D /* RachioAPI.swift in Sources */,
 				A1000000000000000000002F1 /* GraphDataPrefetcher.swift in Sources */,
 				A10000000000000000000021F /* NotificationService.swift in Sources */,

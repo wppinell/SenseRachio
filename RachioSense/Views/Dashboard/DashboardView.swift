@@ -1,32 +1,44 @@
 import SwiftUI
 import SwiftData
-import Charts
 
 struct DashboardView: View {
     @EnvironmentObject private var appState: AppState
     @Environment(\.modelContext) private var modelContext
     @State private var viewModel = DashboardViewModel()
     @AppStorage(AppStorageKey.temperatureUnit) private var tempUnit = "celsius"
-    @AppStorage(AppStorageKey.rainSkipEnabled) private var rainSkip = true
-    @AppStorage(AppStorageKey.freezeSkipEnabled) private var freezeSkip = true
-    @AppStorage(AppStorageKey.windSkipEnabled) private var windSkip = false
-    @AppStorage(AppStorageKey.rainSkipThreshold) private var rainThreshold = 6.0
-    @AppStorage(AppStorageKey.freezeSkipThreshold) private var freezeThreshold = 2.0
-    @AppStorage(AppStorageKey.windSkipThreshold) private var windThreshold = 30.0
 
-    @Query(sort: \SensorReading.recordedAt) private var storedReadings: [SensorReading]
+    @AppStorage(AppStorageKey.autoWaterThreshold) private var autoWaterThreshold: Double = 20
+    @AppStorage(AppStorageKey.dryThreshold) private var dryThreshold: Double = 25
+    @AppStorage(AppStorageKey.lowThreshold) private var highThreshold: Double = 40
+
     @Query private var sensorConfigs: [SensorConfig]
     
     private var sensorNameByEUI: [String: String] {
         Dictionary(uniqueKeysWithValues: sensorConfigs.map { ($0.eui, $0.displayName) })
     }
 
-    private var top4Sensors: [SensorReading] {
-        Array(viewModel.sensorReadings.sorted(by: { $0.moisture < $1.moisture }).prefix(4))
-    }
 
-    private var allEnabledZones: [RachioZone] {
-        viewModel.zones.flatMap(\.zones).filter(\.enabled)
+    
+    // Visible sensors only (exclude hidden)
+    private var hiddenEUIs: Set<String> {
+        Set(sensorConfigs.filter { $0.isHiddenFromGraphs }.map { $0.eui })
+    }
+    private var visibleReadings: [SensorReading] {
+        viewModel.sensorReadings.filter { !hiddenEUIs.contains($0.eui) }
+    }
+    
+    // Sensor lists by status (visible only)
+    private var criticalSensors: [SensorReading] {
+        visibleReadings.filter { $0.moisture < autoWaterThreshold }.sorted { $0.moisture < $1.moisture }
+    }
+    private var drySensors: [SensorReading] {
+        visibleReadings.filter { $0.moisture >= autoWaterThreshold && $0.moisture < dryThreshold }.sorted { $0.moisture < $1.moisture }
+    }
+    private var okCount: Int {
+        visibleReadings.filter { $0.moisture >= dryThreshold && $0.moisture < highThreshold }.count
+    }
+    private var highSensors: [SensorReading] {
+        visibleReadings.filter { $0.moisture >= highThreshold }.sorted { $0.moisture > $1.moisture }
     }
 
     var body: some View {
@@ -100,7 +112,6 @@ struct DashboardView: View {
                     .padding(.horizontal, DS.Spacing.lg)
                 } else {
                     moistureCard
-                    zonesCard
                     weatherCard
                 }
 
@@ -136,7 +147,7 @@ struct DashboardView: View {
             .padding(.bottom, DS.Spacing.xs)
 
             VStack(alignment: .leading, spacing: DS.Spacing.md) {
-                if top4Sensors.isEmpty {
+                if visibleReadings.isEmpty {
                     HStack {
                         Image(systemName: "sensor.fill")
                             .foregroundStyle(DS.Color.textTertiary)
@@ -145,108 +156,62 @@ struct DashboardView: View {
                             .foregroundStyle(DS.Color.textSecondary)
                     }
                 } else {
-                    // Sensor dots — top 4 sensors
-                    HStack(spacing: DS.Spacing.lg) {
-                        ForEach(top4Sensors, id: \.eui) { reading in
-                            MoistureDotView(reading: reading, name: sensorNameByEUI[reading.eui])
-                        }
-                        Spacer()
+                    // Critical sensors
+                    if !criticalSensors.isEmpty {
+                        SensorStatusSection(
+                            title: "Critical",
+                            icon: "exclamationmark.triangle.fill",
+                            color: DS.Color.error,
+                            sensors: criticalSensors,
+                            nameByEUI: sensorNameByEUI
+                        )
                     }
-
-                    // 24h trend sparkline
-                    let cutoff = Date().addingTimeInterval(-86400)
-                    let trendData = storedReadings
-                        .filter { $0.recordedAt >= cutoff }
-                        .map { ($0.recordedAt, $0.moisture) }
-                        .sorted(by: { $0.0 < $1.0 })
-
-                    if trendData.count >= 2 {
-                        VStack(alignment: .leading, spacing: DS.Spacing.xs) {
-                            Text("24h trend")
-                                .font(DS.Font.footnote)
+                    
+                    // Dry sensors
+                    if !drySensors.isEmpty {
+                        SensorStatusSection(
+                            title: "Dry",
+                            icon: "exclamationmark.circle.fill",
+                            color: DS.Color.warning,
+                            sensors: drySensors,
+                            nameByEUI: sensorNameByEUI
+                        )
+                    }
+                    
+                    // High sensors
+                    if !highSensors.isEmpty {
+                        SensorStatusSection(
+                            title: "High",
+                            icon: "drop.fill",
+                            color: Color(hex: "0EA5E9"),
+                            sensors: highSensors,
+                            nameByEUI: sensorNameByEUI
+                        )
+                    }
+                    
+                    // OK summary (just count, not individual sensors)
+                    if okCount > 0 && criticalSensors.isEmpty && drySensors.isEmpty && highSensors.isEmpty {
+                        HStack(spacing: DS.Spacing.xs) {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundStyle(DS.Color.online)
+                            Text("All \(okCount) sensors OK")
+                                .font(DS.Font.cardBody)
+                                .foregroundStyle(DS.Color.textSecondary)
+                        }
+                    } else if okCount > 0 {
+                        HStack(spacing: DS.Spacing.xs) {
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.system(size: 11))
+                                .foregroundStyle(DS.Color.online)
+                            Text("\(okCount) OK")
+                                .font(DS.Font.caption)
                                 .foregroundStyle(DS.Color.textTertiary)
-                            Chart {
-                                ForEach(trendData, id: \.0) { point in
-                                    AreaMark(
-                                        x: .value("Time", point.0),
-                                        y: .value("Moisture", point.1)
-                                    )
-                                    .foregroundStyle(DS.Color.accent.opacity(0.15))
-                                    LineMark(
-                                        x: .value("Time", point.0),
-                                        y: .value("Moisture", point.1)
-                                    )
-                                    .foregroundStyle(DS.Color.accent)
-                                    .interpolationMethod(.catmullRom)
-                                }
-                            }
-                            .frame(height: 56)
-                            .chartYScale(domain: 0...100)
-                            .chartXAxis(.hidden)
-                            .chartYAxis(.hidden)
                         }
                     }
+
                 }
             }
             .padding(DS.Spacing.lg)
-            .dsCard()
-            .padding(.horizontal, DS.Spacing.lg)
-        }
-    }
-
-    // MARK: - ZONES Card
-
-    private var zonesCard: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                Text("ZONES")
-                    .font(DS.Font.sectionHeader)
-                    .foregroundStyle(DS.Color.textSecondary)
-                    .tracking(0.8)
-                Spacer()
-                Button {
-                    appState.selectedTab = 2
-                } label: {
-                    Text("See All →")
-                        .font(DS.Font.label)
-                        .foregroundStyle(DS.Color.accent)
-                }
-            }
-            .padding(.horizontal, DS.Spacing.lg)
-            .padding(.top, DS.Spacing.xl)
-            .padding(.bottom, DS.Spacing.xs)
-
-            VStack(spacing: 1) {
-                if allEnabledZones.isEmpty {
-                    HStack {
-                        Image(systemName: "drop.fill")
-                            .foregroundStyle(DS.Color.textTertiary)
-                        Text(appState.hasRachioCredentials ? "No zones found — pull to refresh" : "Connect Rachio in Settings")
-                            .font(DS.Font.caption)
-                            .foregroundStyle(DS.Color.textSecondary)
-                    }
-                    .padding(DS.Spacing.md)
-                } else {
-                    ForEach(allEnabledZones.prefix(5)) { zone in
-                        ZoneSummaryRow(zone: zone)
-                        if zone.id != allEnabledZones.prefix(5).last?.id {
-                            Divider()
-                                .padding(.leading, DS.Spacing.lg)
-                        }
-                    }
-                    if allEnabledZones.count > 5 {
-                        Button {
-                            appState.selectedTab = 2
-                        } label: {
-                            Text("+ \(allEnabledZones.count - 5) more zones")
-                                .font(DS.Font.caption)
-                                .foregroundStyle(DS.Color.accent)
-                                .padding(DS.Spacing.md)
-                                .frame(maxWidth: .infinity)
-                        }
-                    }
-                }
-            }
             .dsCard()
             .padding(.horizontal, DS.Spacing.lg)
         }
@@ -264,184 +229,191 @@ struct DashboardView: View {
                 .padding(.top, DS.Spacing.xl)
                 .padding(.bottom, DS.Spacing.xs)
 
-            DashboardWeatherCard(
-                rainSkip: rainSkip,
-                rainThreshold: rainThreshold,
-                freezeSkip: freezeSkip,
-                freezeThreshold: freezeThreshold,
-                windSkip: windSkip,
-                windThreshold: windThreshold,
-                tempUnit: tempUnit
-            )
-            .padding(.horizontal, DS.Spacing.lg)
+            WeatherForecastCard(tempUnit: tempUnit)
+                .padding(.horizontal, DS.Spacing.lg)
         }
     }
 }
 
-// MARK: - Moisture Dot View
+// MARK: - Weather Forecast Card
 
-private struct MoistureDotView: View {
-    let reading: SensorReading
-    var name: String? = nil
-
-    private var color: Color { DS.Color.moisture(reading.moisture) }
-    
-    private var displayName: String {
-        if let name = name, !name.isEmpty {
-            // Abbreviate long names
-            if name.count > 8 {
-                return String(name.prefix(7)) + "…"
-            }
-            return name
-        }
-        return String(reading.eui.suffix(4))
-    }
-
-    var body: some View {
-        VStack(spacing: DS.Spacing.xs) {
-            ZStack {
-                Circle()
-                    .fill(color.opacity(0.12))
-                    .frame(width: 54, height: 54)
-                Circle()
-                    .trim(from: 0, to: CGFloat(max(0, min(reading.moisture, 100)) / 100))
-                    .stroke(color, style: StrokeStyle(lineWidth: 4, lineCap: .round))
-                    .rotationEffect(.degrees(-90))
-                    .frame(width: 46, height: 46)
-                Text("\(Int(reading.moisture))%")
-                    .font(.system(size: 11, weight: .bold, design: .rounded))
-                    .foregroundStyle(color)
-            }
-            Text(displayName)
-                .font(DS.Font.footnote)
-                .foregroundStyle(DS.Color.textTertiary)
-                .lineLimit(1)
-        }
-    }
-}
-
-// MARK: - Zone Summary Row
-
-private struct ZoneSummaryRow: View {
-    let zone: RachioZone
-
-    private var lastWateredText: String {
-        guard let epochMs = zone.lastWateredDate else { return "Never watered" }
-        let date = Date(timeIntervalSince1970: Double(epochMs) / 1000)
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .abbreviated
-        return "Last: \(formatter.localizedString(for: date, relativeTo: Date()))"
-    }
-
-    var body: some View {
-        HStack(spacing: DS.Spacing.md) {
-            Image(systemName: "drop.fill")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(DS.Color.accent)
-                .frame(width: 28, height: 28)
-                .background(DS.Color.accentMuted)
-                .clipShape(RoundedRectangle(cornerRadius: 6))
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(zone.name)
-                    .font(DS.Font.cardTitle)
-                    .foregroundStyle(DS.Color.textPrimary)
-                Text(lastWateredText)
-                    .font(DS.Font.caption)
-                    .foregroundStyle(DS.Color.textSecondary)
-            }
-
-            Spacer()
-
-            DSBadge(text: "Idle", color: DS.Color.textTertiary, small: true)
-        }
-        .padding(.horizontal, DS.Spacing.lg)
-        .padding(.vertical, DS.Spacing.md)
-    }
-}
-
-// MARK: - Dashboard Weather Card
-
-private struct DashboardWeatherCard: View {
-    let rainSkip: Bool
-    let rainThreshold: Double
-    let freezeSkip: Bool
-    let freezeThreshold: Double
-    let windSkip: Bool
-    let windThreshold: Double
+private struct WeatherForecastCard: View {
     let tempUnit: String
-
-    private var activeSkips: [(icon: String, label: String, value: String)] {
-        var skips: [(String, String, String)] = []
-        if rainSkip   { skips.append(("cloud.rain.fill",       "Rain Skip",   ">\(Int(rainThreshold)) mm")) }
-        if freezeSkip { skips.append(("thermometer.snowflake", "Freeze Skip", "<\(Int(freezeThreshold))°C")) }
-        if windSkip   { skips.append(("wind",                  "Wind Skip",   ">\(Int(windThreshold)) km/h")) }
-        return skips
-    }
-
+    @State private var forecast: WeatherAPI.Forecast?
+    @State private var isLoading = true
+    @State private var error: String?
+    
+    // Default to Phoenix, AZ — could be made configurable
+    private let latitude = 33.4484
+    private let longitude = -112.0740
+    
     var body: some View {
-        VStack(alignment: .leading, spacing: DS.Spacing.md) {
-            // Current conditions row (placeholder — no live weather API)
-            HStack(spacing: DS.Spacing.md) {
-                Image(systemName: "cloud.sun.fill")
-                    .font(.system(size: 28))
-                    .foregroundStyle(DS.Color.warning)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Weather Integration")
-                        .font(DS.Font.cardTitle)
-                        .foregroundStyle(DS.Color.textPrimary)
-                    Text("Configure source in Settings → Weather Integration")
+        VStack(spacing: 0) {
+            if isLoading {
+                HStack {
+                    ProgressView()
+                    Text("Loading…")
                         .font(DS.Font.caption)
                         .foregroundStyle(DS.Color.textSecondary)
                 }
-            }
-
-            if !activeSkips.isEmpty {
-                Divider()
-                Text("SMART SKIPS ACTIVE")
-                    .font(DS.Font.sectionHeader)
-                    .foregroundStyle(DS.Color.textSecondary)
-                    .tracking(0.8)
-
-                HStack(spacing: DS.Spacing.md) {
-                    ForEach(activeSkips, id: \.label) { skip in
-                        VStack(spacing: DS.Spacing.xs) {
-                            Image(systemName: skip.icon)
-                                .font(.system(size: 18))
-                                .foregroundStyle(DS.Color.accent)
-                            Text(skip.label)
-                                .font(DS.Font.caption)
-                                .foregroundStyle(DS.Color.textSecondary)
-                                .multilineTextAlignment(.center)
-                            Text(skip.value)
-                                .font(DS.Font.label)
-                                .fontWeight(.semibold)
-                                .foregroundStyle(DS.Color.textPrimary)
-                                .monospacedDigit()
+                .frame(height: 70)
+            } else if let forecast {
+                HStack(alignment: .center, spacing: DS.Spacing.sm) {
+                    // Current conditions (compact)
+                    compactCurrentView(forecast.current)
+                    
+                    Divider()
+                        .frame(height: 50)
+                    
+                    // 7-day forecast (compact)
+                    HStack(spacing: 0) {
+                        ForEach(Array(forecast.daily.enumerated()), id: \.element.id) { index, day in
+                            compactDayView(day, isToday: index == 0)
                         }
-                        .frame(maxWidth: .infinity)
                     }
                 }
-
-                DSInlineBanner(
-                    message: "Zones will skip scheduled runs when conditions exceed thresholds.",
-                    style: .info
-                )
-            } else {
-                Divider()
-                HStack(spacing: DS.Spacing.sm) {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(DS.Color.online)
-                    Text("No skip conditions active")
+                .padding(.horizontal, DS.Spacing.sm)
+                .padding(.vertical, DS.Spacing.xs)
+            } else if let error {
+                HStack {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(DS.Color.warning)
+                    Text(error)
                         .font(DS.Font.caption)
                         .foregroundStyle(DS.Color.textSecondary)
                 }
+                .frame(height: 50)
             }
         }
-        .padding(DS.Spacing.lg)
         .dsCard()
+        .task {
+            await loadForecast()
+        }
+    }
+    
+    private func loadForecast() async {
+        do {
+            forecast = try await WeatherAPI.shared.fetchForecast(latitude: latitude, longitude: longitude)
+            isLoading = false
+        } catch {
+            self.error = "Unable to load forecast"
+            isLoading = false
+        }
+    }
+    
+    @ViewBuilder
+    private func compactCurrentView(_ current: WeatherAPI.CurrentWeather) -> some View {
+        HStack(spacing: DS.Spacing.xs) {
+            Image(systemName: current.icon)
+                .font(.system(size: 24))
+                .foregroundStyle(iconColor(for: current.weatherCode))
+            
+            VStack(alignment: .leading, spacing: 0) {
+                Text(formatTemp(current.temperature))
+                    .font(.system(size: 20, weight: .bold, design: .rounded))
+                    .foregroundStyle(DS.Color.textPrimary)
+                Text("\(current.humidity)%")
+                    .font(.system(size: 10))
+                    .foregroundStyle(DS.Color.textTertiary)
+            }
+        }
+        .frame(minWidth: 70)
+    }
+    
+    @ViewBuilder
+    private func compactDayView(_ day: WeatherAPI.DailyForecast, isToday: Bool) -> some View {
+        VStack(spacing: 2) {
+            Text(shortDayLabel(day.date, isToday: isToday))
+                .font(.system(size: 9, weight: .medium))
+                .foregroundStyle(DS.Color.textTertiary)
+            
+            Image(systemName: day.icon)
+                .font(.system(size: 14))
+                .foregroundStyle(iconColor(for: day.weatherCode))
+            
+            Text("\(Int(day.highTemp))°")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(DS.Color.textPrimary)
+            
+            Text("\(Int(day.lowTemp))°")
+                .font(.system(size: 9))
+                .foregroundStyle(DS.Color.textTertiary)
+        }
+        .frame(maxWidth: .infinity)
+    }
+    
+    private func shortDayLabel(_ date: Date, isToday: Bool) -> String {
+        if isToday { return "TOD" }
+        let calendar = Calendar.current
+        if calendar.isDateInTomorrow(date) { return "TOM" }
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEE"
+        return formatter.string(from: date).uppercased().prefix(2).description
+    }
+    
+    private func formatTemp(_ temp: Double) -> String {
+        if tempUnit == "celsius" {
+            let c = (temp - 32) * 5 / 9
+            return "\(Int(c))°"
+        }
+        return "\(Int(temp))°"
+    }
+    
+    private func iconColor(for code: Int) -> Color {
+        switch code {
+        case 0: return .yellow           // Clear
+        case 1, 2, 3: return .orange     // Partly cloudy
+        case 61, 63, 65, 80, 81, 82: return Color(hex: "0EA5E9")  // Rain
+        case 95, 96, 99: return .purple  // Thunderstorm
+        default: return DS.Color.textSecondary
+        }
     }
 }
+
+// MARK: - Sensor Status Section
+
+private struct SensorStatusSection: View {
+    let title: String
+    let icon: String
+    let color: Color
+    let sensors: [SensorReading]
+    let nameByEUI: [String: String]
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: DS.Spacing.xs) {
+            // Header
+            HStack(spacing: DS.Spacing.xs) {
+                Image(systemName: icon)
+                    .font(.system(size: 11))
+                    .foregroundStyle(color)
+                Text(title)
+                    .font(DS.Font.label)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(color)
+            }
+            
+            // Sensor list
+            ForEach(sensors, id: \.eui) { reading in
+                HStack {
+                    Text(nameByEUI[reading.eui] ?? String(reading.eui.suffix(4)))
+                        .font(DS.Font.cardBody)
+                        .foregroundStyle(DS.Color.textPrimary)
+                        .lineLimit(1)
+                    Spacer(minLength: DS.Spacing.sm)
+                    Text("\(Int(reading.moisture))%")
+                        .font(DS.Font.cardTitle)
+                        .foregroundStyle(color)
+                        .monospacedDigit()
+                }
+            }
+        }
+        .padding(DS.Spacing.sm)
+        .background(color.opacity(0.06))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+    }
+}
+
+
 
 #Preview {
     DashboardView()
