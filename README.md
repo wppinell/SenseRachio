@@ -12,9 +12,10 @@ An iOS app that bridges **SenseCAP soil moisture sensors** with the **Rachio irr
 
 ## Features Overview
 
+- 🏠 **Dashboard** — Sensor status summary, system health, 7-day weather forecast
 - 📊 **Graphs** — Historical moisture data with configurable thresholds
-- 💧 **Sensors** — Live readings with status filters
-- 🌿 **Zones** — Rachio zone control and monitoring
+- 💧 **Sensors** — Live readings with status filters (Critical/Dry/OK/High)
+- 🌿 **Zones** — Rachio zone control with schedule info and weekly runtime
 - ⚙️ **Settings** — Comprehensive configuration options
 
 ---
@@ -25,415 +26,248 @@ An iOS app that bridges **SenseCAP soil moisture sensors** with the **Rachio irr
 
 | Tab | Icon | Description |
 |-----|------|-------------|
-| **Dashboard** | `house.fill` | Overview cards showing moisture summary, zones, weather |
-| **Graphs** | `chart.line.uptrend.xyaxis` | Historical moisture graphs organized by zone groups |
-| **Sensors** | `sensor.fill` | List of all soil sensors with live readings |
-| **Zones** | `drop.fill` | Rachio irrigation zones with run controls |
+| **Dashboard** | `house.fill` | Status summary, sensor health, weather forecast |
+| **Graphs** | `chart.line.uptrend.xyaxis` | Historical moisture graphs by zone group |
+| **Sensors** | `sensor.fill` | All sensors with live readings and filters |
+| **Zones** | `drop.fill` | Rachio irrigation zones with schedule info |
 | **Settings** | `gearshape.fill` | All configuration options |
+
+---
+
+## 🏠 Dashboard Tab
+
+### MOISTURE Card
+
+Shows sensor health at a glance. Hidden sensors are excluded from all counts and lists.
+
+| Element | Description |
+|---------|-------------|
+| **Critical section** | 🔺 Red — sensors below auto-water threshold, listed with name + moisture % |
+| **Dry section** | ⚠️ Yellow — sensors below dry threshold, listed with name + moisture % |
+| **High section** | 💧 Blue — sensors above high threshold, listed with name + moisture % |
+| **OK summary** | "All 7 sensors OK" or "4 OK" — no individual names needed |
+| **See All →** | Navigates to Sensors tab |
+
+### SYSTEM STATUS Card
+
+| Element | Description |
+|---------|-------------|
+| **SenseCraft** | ● green/red + sensor count + "synced Xm ago" |
+| **Rachio** | ● green/red + device name + enabled zone count |
+
+### WEATHER Card
+
+Live 7-day forecast via [Open-Meteo](https://open-meteo.com) (free, no API key required).
+
+| Element | Description |
+|---------|-------------|
+| **Current** | Weather icon, temperature, humidity % |
+| **7-day strip** | TOD / TOM / day labels, icon, high °, low ° |
+
+Weather is fetched once on load and cached in memory — switching tabs doesn't re-fetch.
 
 ---
 
 ## 📊 Graphs Tab
 
-The Graphs tab displays historical moisture data in card format, organized by zone groups.
+Historical moisture data in cards organized by zone groups.
 
-### Graph Card Components
+### Graph Card
 
 | Element | Description |
 |---------|-------------|
-| **Card Title** | Zone group name (e.g., "Raised Beds", "Citrus Trees") |
-| **Period Picker** | `1d` `2d` `4d` `5d` `1w` buttons in top-right corner |
-| **Chart Area** | Line graph showing moisture % over time |
-| **Threshold Lines** | Three horizontal dashed lines (see below) |
-| **Legend** | Colored squares with sensor names below chart |
-| **X-Axis Labels** | Date labels in `M/D` format (e.g., "3/24"), centered on grid lines |
-| **Y-Axis Labels** | Moisture percentage (e.g., "20%", "30%", "40%") |
+| **Title** | Zone group name |
+| **Period Picker** | `1d` `2d` `4d` `5d` `1w` — single tap = this card, double tap = sync all |
+| **Chart** | Line graph, moisture % over time |
+| **X-Axis** | `M/D` date labels centered on grid lines |
+| **Y-Axis** | Moisture % ticks |
+| **Threshold lines** | 🔴 auto-water · 🟡 dry · 🔵 high (dashed) |
+| **Legend** | Colored squares + sensor names |
 
-### Period Picker Buttons
+### Pull-to-Refresh
 
-| Button | Range | Behavior |
-|--------|-------|----------|
-| `1d` | 1 day | Shows last 24 hours |
-| `2d` | 2 days | Shows last 48 hours |
-| `4d` | 4 days | Shows last 4 days (default) |
-| `5d` | 5 days | Shows last 5 days |
-| `1w` | 1 week | Shows last 7 days |
-
-**Interactions:**
-- **Single tap** — Changes only THIS card's time range
-- **Double tap** — Syncs ALL cards to the same time range (shows "Synced" badge briefly)
-
-### Threshold Lines (Dashed Horizontal Lines)
-
-| Color | Threshold | Meaning |
-|-------|-----------|---------|
-| 🔴 Red | Auto-water | Below this = irrigation triggers automatically (if enabled) |
-| 🟡 Yellow/Orange | Dry | Below this = soil is getting dry, needs attention |
-| 🔵 Blue | High | Above this = soil is well-watered |
-
-*Threshold values are configured globally in Settings → Configuration → Thresholds*
-
-### Graph Interactions
-
-| Action | Result |
-|--------|--------|
-| **Pull down** | Refreshes data (fetches only new readings since last fetch) |
-| **Scroll** | Scroll to see more graph cards |
+Smart refresh — only fetches data since the last stored reading. If last reading was 2h ago, fetches 2h of data (not full 7 days). Falls back to cached data if the API fails.
 
 ---
 
 ## 💧 Sensors Tab
 
-Lists all SenseCAP soil moisture sensors with live readings and filtering.
+### Filter Chips
 
-### Filter Chips (Horizontal Scroll at Top)
+| Chip | Color | Criteria |
+|------|-------|----------|
+| **All** | Accent | All visible sensors |
+| **Critical** | 🔴 Red | < auto-water threshold |
+| **Dry** | 🟡 Yellow | between auto-water and dry threshold |
+| **OK** | 🟢 Green | between dry and high threshold |
+| **High** | 🔵 Blue | > high threshold |
+| **[Group Name]** | Muted | Sensors in that zone group |
 
-| Chip | Icon | Color | Filter Criteria |
-|------|------|-------|-----------------|
-| **All** | — | Accent | Shows all sensors |
-| **Critical** | ⚠️ triangle | Red | Moisture < auto-water threshold |
-| **Dry** | ❗ circle | Yellow | Moisture between auto-water and dry threshold |
-| **OK** | ✓ circle | Green | Moisture between dry and high threshold |
-| **High** | 💧 drop | Blue | Moisture > high threshold |
-
-**Additional Group Chips** (if zone groups exist):
-- `All Groups` — Show sensors from all groups
-- `[Group Name]` — Filter to sensors linked to zones in that group
-
-### Sensor Row Components
+### Sensor Row
 
 | Element | Description |
 |---------|-------------|
-| **Status Dot** | Colored circle (red/yellow/green/blue) based on moisture level |
-| **Sensor Name** | Display name (alias if set, otherwise original name) |
-| **Original Name** | Shown in smaller text if alias is set |
-| **Moisture %** | Current reading (e.g., "32%") |
-| **Temperature** | Current temp (e.g., "72°F" or "22°C") |
-| **Last Updated** | Relative time (e.g., "5m ago") |
-| **Moisture Bar** | Horizontal colored bar showing moisture level |
-| **Threshold Indicator** | Shows "Auto-water: 20%" or "Dry alert: 25%" |
-| **Auto Badge** | 💧 "Auto" label if auto-water is enabled |
+| **Status dot** | Color matches moisture level |
+| **Name** | Alias if set, else original name |
+| **Moisture %** | Current reading |
+| **Temperature** | °F or °C |
+| **Last updated** | Relative time |
+| **Moisture bar** | Horizontal color bar |
+| **Status label** | Only shown for Critical / Dry / High — nothing for OK |
+| **Auto badge** | "Auto at 20%" shown for OK sensors with auto-water enabled |
 
-### Sensor Row Interactions
-
-| Action | Result |
-|--------|--------|
-| **Tap row** | Opens Sensor Detail view |
-| **Pull down** | Refreshes all sensor readings |
-
-### Sensor Detail View
-
-| Section | Contents |
-|---------|----------|
-| **Hero Card** | Large moisture %, temperature, trend indicator |
-| **Zone Link** | Linked Rachio zone name (if any) |
-| **Automation** | Auto-water status, threshold display |
-| **History Chart** | Mini chart with period picker |
-| **Quick Actions** | "Run Zone" button (if linked) |
+Sensor readings never go blank on refresh — app falls back to last cached reading if API fails.
 
 ---
 
 ## 🌿 Zones Tab
 
-Lists all Rachio irrigation zones with status and controls.
-
-### Zone Row Components
+### Zone Row
 
 | Element | Description |
 |---------|-------------|
-| **Zone Name** | Rachio zone name |
-| **Status Badge** | "Idle", "Running", or "Scheduled" |
-| **Last Run** | When zone last ran (e.g., "Yesterday at 6:00 AM") |
-| **Duration** | Default run time |
+| **Number badge** | Green if running, accent if idle |
+| **Zone name** | Rachio zone name |
+| **Last watered** | "Watered 3h ago · 15m" |
+| **Weekly schedule** | 📅 "40 min/week · Column Ficus" |
+| **Run button** | Opens duration picker (5/10/15/20/30 min) |
+| **Stop button** | Stops running zone immediately |
 
-### Zone Row Interactions
+**Weekly minutes logic:**
 
-| Action | Result |
-|--------|--------|
-| **Tap row** | Opens Zone Detail view |
-| **Pull down** | Refreshes zone status from Rachio |
+| Schedule type | Runs/week |
+|---------------|-----------|
+| `INTERVAL_1` | 7× (daily) |
+| `INTERVAL_2` | 3.5× (every 2 days) |
+| `INTERVAL_N` | 7÷N |
+| `DAY_OF_WEEK_N` | Count of specific days |
+
+Displayed as minutes if < 90min, hours+minutes if ≥ 90min.
 
 ### Zone Detail View
 
 | Section | Contents |
 |---------|----------|
-| **Status Card** | Current status, time remaining if running |
-| **Run Controls** | Duration picker + "Start" button |
-| **Linked Sensors** | List of sensors linked to this zone |
-| **Schedule** | Upcoming scheduled runs |
-| **History** | Recent run history |
-
-### Zone Control Buttons
-
-| Button | Action |
-|--------|--------|
-| **Start** | Starts zone for selected duration |
-| **Stop** | Stops zone immediately (shown when running) |
-| **Duration Picker** | Select run time (5, 10, 15, 20, 30 min) |
+| **Header** | Zone number, status badge, last watered |
+| **Control** | Duration picker + Start/Stop |
+| **Run History** | Recent watering events |
+| **Schedule** | All schedules using this zone: name, summary, start time, run duration |
+| **Linked Sensors** | Sensors assigned to this zone |
+| **Group** | Which zone group |
 
 ---
 
 ## ⚙️ Settings Tab
 
-Comprehensive configuration organized into sections.
+### Account
 
-### Account Section
+| Service | Fields |
+|---------|--------|
+| **SenseCraft** | API Key + Secret, Test Connection button |
+| **Rachio** | API Key, Test Connection button |
 
-#### SenseCraft Credentials
-| Field | Description |
-|-------|-------------|
-| **API Key** | Your SenseCAP API key |
-| **API Secret** | Your SenseCAP API secret |
-| **Test Connection** | Button to verify credentials work |
-| **Status Badge** | "Connected" (green) or "Not Connected" (red) |
-
-#### Rachio Credentials
-| Field | Description |
-|-------|-------------|
-| **API Key** | Your Rachio API key |
-| **Test Connection** | Button to verify credentials work |
-| **Status Badge** | "Connected" (green) or "Not Connected" (red) |
-
----
-
-### Configuration Section
+### Configuration
 
 #### Sensor-Zone Links
 
-Links soil sensors to Rachio irrigation zones.
-
-**List View:**
-| Element | Description |
-|---------|-------------|
-| **Linked Sensors** | Section showing sensors with zone links |
-| **Unlinked Sensors** | Section showing sensors without links |
-| **Sensor Row** | Name, original name (if aliased), linked zone, auto badge |
-
-**Detail View (tap a sensor):**
 | Field | Description |
 |-------|-------------|
-| **Alias** | Custom display name for sensor |
-| **Original Name** | Read-only, from SenseCAP |
-| **EUI** | Device identifier (read-only) |
-| **Zone Picker** | Dropdown to select linked Rachio zone |
-| **Auto-water Toggle** | Enable/disable automatic irrigation |
-| **Show in Graphs Toggle** | Hide sensor from all graphs |
-| **Remove Link** | Button to unlink sensor from zone |
+| **Alias** | Custom display name |
+| **Zone Picker** | Link to Rachio zone |
+| **Auto-water** | Enable auto-irrigation when critical |
+| **Show in Graphs** | Toggle visibility |
+| **Remove Link** | Unlink from zone |
 
 #### Zone Groups
 
-Organize zones into groups for combined graph display.
-
-| Control | Description |
-|---------|-------------|
-| **Add Group** | "+" button to create new group |
-| **Group Name** | Editable text field |
-| **Assigned Zones** | Checkboxes to assign zones to group |
-| **Sort Order** | Drag handles to reorder groups |
-| **Delete** | Swipe left to delete group |
+Group zones for combined graph display. Drag to reorder, swipe to delete.
 
 #### Thresholds
 
-Global moisture thresholds used throughout the app.
+| Threshold | Default | Color |
+|-----------|---------|-------|
+| **High Level** | 40% | 🔵 Blue |
+| **Dry Level** | 25% | 🟡 Yellow |
+| **Auto-water Trigger** | 20% | 🔴 Red |
 
-| Slider | Default | Description |
-|--------|---------|-------------|
-| **High Level** | 40% | 🔵 Blue — Moisture above this is "well watered" |
-| **Dry Level** | 25% | 🟡 Yellow — Below this triggers dry alerts |
-| **Auto-water Trigger** | 20% | 🔴 Red — Below this starts auto-irrigation |
-
-| Control | Description |
-|---------|-------------|
-| **Slider** | Drag to adjust threshold (shows % value) |
-| **Color** | Slider/value colored to match threshold level |
-| **Preview** | Live preview showing sample values with colors |
-| **Reset to Defaults** | Button to restore default values |
+All thresholds are **global** — used throughout the app including sensors, dashboard, notifications, and background refresh.
 
 #### Notifications
-| Toggle | Description |
-|--------|-------------|
-| **Dry Alerts** | Notify when sensor drops below dry threshold |
-| **Critical Alerts** | Notify when sensor drops below auto-water threshold |
-| **Watering Started** | Notify when auto-water activates |
-| **Watering Complete** | Notify when zone finishes running |
+
+Dry alerts and critical alerts when sensors drop below thresholds.
 
 #### Weather Integration
-| Toggle | Description |
-|--------|-------------|
-| **Rain Skip** | Skip scheduled watering when rain is forecast |
-| **Freeze Skip** | Skip watering when freeze is forecast |
 
----
+Rain skip and freeze skip toggles for Rachio scheduling.
 
-### Display Section
+### Display
 
-#### Appearance
-| Control | Options | Description |
-|---------|---------|-------------|
-| **Theme** | System / Light / Dark | App color scheme |
-| **Accent Color** | Color picker | Primary accent color |
-| **Haptics** | Toggle | Enable/disable haptic feedback |
-| **Animations** | Toggle | Enable/disable UI animations |
-
-#### Graph Settings
-| Control | Description |
-|---------|-------------|
-| **Default Period** | Default time range for graphs (1d–1w) |
-| **Y-Axis Minimum** | Bottom of graph scale (default 15%) |
-| **Y-Axis Maximum** | Top of graph scale (default 45%) |
-
-#### Sensor Labels
-| Control | Options |
+| Setting | Options |
 |---------|---------|
-| **Primary Label** | Name / EUI / Group |
-| **Secondary Label** | Moisture+Temp / Moisture only / Temp only / None |
-| **Status Indicator** | Colored dot / Colored background / None |
+| **Theme** | System / Light / Dark |
+| **Default Graph Period** | 1d – 1w |
+| **Graph Y-Axis** | Min / Max % |
+| **Sensor Labels** | Primary / secondary label, status indicator style |
+| **Temperature Units** | °F / °C |
 
-#### Units
-| Control | Options |
-|---------|---------|
-| **Temperature** | Fahrenheit (°F) / Celsius (°C) |
+### Data & Privacy
 
----
-
-### Data & Privacy Section
-
-#### Backup & Restore
-| Button | Description |
-|--------|-------------|
-| **Create Backup** | Exports all settings as JSON file |
-| **Restore from Backup** | Imports settings from JSON file |
-
-*Backup includes: sensor aliases, zone links, groups, thresholds, display settings*
-*Backup excludes: API credentials (security), sensor readings (too large)*
-
-#### Export Data
-| Option | Description |
-|--------|-------------|
-| **Format** | CSV or JSON |
-| **Date Range** | Last 7 days / Last 30 days / All / Custom |
-| **Export** | Generates and shares file |
-
-#### Local Storage
-| Display | Description |
+| Feature | Description |
 |---------|-------------|
-| **Readings Stored** | Number of sensor readings in database |
-| **Date Range** | Oldest to newest reading dates |
-| **Storage Used** | Approximate database size |
-| **Clear Old Data** | Button to delete readings older than 7 days |
+| **Backup** | Export aliases, links, groups, settings as JSON |
+| **Restore** | Import from JSON backup |
+| **Export Data** | CSV or JSON for a date range |
+| **Clear Old Data** | Delete readings > 7 days |
+
+### Support
+
+| Tool | Description |
+|------|-------------|
+| **API Latency** | Measure SenseCraft + Rachio response times |
+| **History API Test** | Fetch 7d history for first sensor |
+| **Copy Debug Log** | Full diagnostic report to clipboard |
+| **Reset Graph Cache** | Delete all readings, force full re-fetch |
+
+### Reset
+
+| Button | Clears |
+|--------|--------|
+| **Reset SenseCraft** | Credentials only |
+| **Reset Rachio** | Credentials only |
+| **Clear Sensor Links** | Zone links + auto-water |
+| **Reset Settings** | Display preferences |
+| **Reset Everything** | All data, returns to onboarding |
 
 ---
 
-### Support Section
+## Architecture
 
-#### Diagnostics
-
-Debugging tools for troubleshooting.
-
-**API Latency:**
-| Row | Description |
-|-----|-------------|
-| **SenseCraft API** | Response time in ms |
-| **Rachio API** | Response time in ms |
-| **Measure Latency** | Button to test both APIs |
-
-**Sync Status:**
-| Row | Description |
-|-----|-------------|
-| **Last Sync** | When data was last fetched |
-| **Sensors** | Number of sensor configs |
-| **Zones** | Number of zone configs |
-| **Readings Stored** | Total readings in database |
-
-**History API Test:**
-| Control | Description |
-|---------|-------------|
-| **Test History Endpoint** | Fetches 7 days for first sensor |
-| **Result Display** | Shows success/failure, reading count, sample data |
-| **Copy** | Copy raw result to clipboard |
-
-**Actions:**
-| Button | Description |
-|--------|-------------|
-| **Copy Debug Log** | Copies full diagnostic report to clipboard |
-| **Reset Graph Cache** | Deletes all readings, forces full re-fetch |
-
-#### Help / FAQ
-Common questions and answers about app usage.
-
-#### Contact Support
-| Field | Description |
-|-------|-------------|
-| **Email** | Pre-filled support email |
-| **Include Diagnostics** | Toggle to attach diagnostic report |
-
-#### About
-App version, build number, acknowledgments, links.
-
----
-
-### Reset Section
-
-**Individual Reset Options:**
-| Button | What it clears |
-|--------|---------------|
-| **Reset SenseCraft** | SenseCraft API credentials only |
-| **Reset Rachio** | Rachio API credentials only |
-| **Clear Sensor Links** | Zone links and auto-water settings |
-| **Reset Settings** | Display preferences to defaults |
-
-**Full Reset:**
-| Button | Description |
-|--------|-------------|
-| **Reset Everything** | Clears ALL data, returns to onboarding |
-
-*All reset actions require confirmation dialog*
-
----
-
-## Data Flow Architecture
+### Data Flow
 
 ```
 SenseCAP API
-    ↓
-GraphDataPrefetcher (smart fetch with rate limiting)
-    ↓
-SwiftData (local store — up to 7 days)
-    ↓
-GraphsViewModel / SensorsViewModel
-    ↓
-UI Views (charts, lists, cards)
+    ↓ (batched, rate-limited)
+GraphDataPrefetcher ──► SwiftData (7 days local) ──► GraphsViewModel ──► Graphs UI
+    ↓ (fallback)
+Last cached reading ──────────────────────────────► SensorsViewModel ──► Sensors UI
+
+Rachio API ──► device + scheduleRules (single call) ──► ZonesViewModel ──► Zones UI
+
+Open-Meteo ──────────────────────────────────────────► DashboardViewModel ──► Weather UI
 ```
 
-### Smart Data Fetching
-
-| Trigger | Fetch Behavior |
-|---------|----------------|
-| **App launch** | Fetch gap since last reading (incremental) |
-| **Pull-to-refresh (Graphs)** | Fetch gap since last reading |
-| **Pull-to-refresh (Sensors)** | Fetch latest readings only |
-| **First launch / Reset cache** | Full 7-day history |
-
-### Rate Limiting Protection
-- Sensors fetched in batches of 2 (not all at once)
-- 30-second cooldown between full refreshes
-- Automatic backoff on HTTP 429 errors
-
----
-
-## Key Services
+### Services
 
 | File | Purpose |
 |------|---------|
-| `SenseCraftAPI.swift` | SenseCAP HTTP client — devices, readings, history |
-| `RachioAPI.swift` | Rachio REST client — devices, zones, schedules, control |
-| `GraphDataPrefetcher.swift` | Smart historical fetch with dedup and rate limiting |
-| `KeychainService.swift` | Secure credential storage |
-| `BackgroundRefreshManager.swift` | iOS background task handling |
+| `SenseCraftAPI.swift` | SenseCAP HTTP client — devices, readings, chunked 24h history |
+| `RachioAPI.swift` | Rachio client — devices, zones, schedules (embedded in device response), zone control |
+| `GraphDataPrefetcher.swift` | Smart incremental fetch, dedup, rate limiting, 7-day pruning |
+| `WeatherAPI.swift` | Open-Meteo 7-day forecast, no API key needed |
+| `KeychainService.swift` | Secure credential storage (survives app reinstall) |
+| `BackgroundRefreshManager.swift` | iOS BGAppRefresh task for background moisture checks |
 
----
-
-## Data Models (SwiftData)
+### Data Models (SwiftData)
 
 | Model | Key Fields |
 |-------|------------|
@@ -443,39 +277,23 @@ UI Views (charts, lists, cards)
 | `ZoneGroup` | id, name, sortOrder, assignedZoneIds |
 | `DashboardCardOrder` | cards, hiddenCards |
 
+### Rate Limiting & Resilience
+
+- Sensors fetched **2 at a time** (not all parallel) to avoid 429s
+- **30-second cooldown** between full graph refreshes
+- **Fallback to cached readings** — sensors never go blank on API failure
+- Dashboard **seeds from SwiftData immediately** before hitting the API
+
 ---
 
 ## Setup Guide
 
-1. **Get SenseCAP credentials:**
-   - Go to [sensecap.seeed.cc](https://sensecap.seeed.cc)
-   - Account → Access API Keys
-   - Copy API Key and API Secret
-
-2. **Get Rachio API key:**
-   - Open Rachio app
-   - Account → API Access
-   - Copy API key
-
-3. **Configure RachioSense:**
-   - Settings → Account → enter both credentials
-   - Tap "Test Connection" to verify
-
-4. **Import sensors:**
-   - Go to Sensors tab
-   - Sensors load automatically from SenseCAP
-
-5. **Link sensors to zones:**
-   - Settings → Configuration → Sensor-Zone Links
-   - Tap each sensor → select its Rachio zone
-
-6. **Configure thresholds:**
-   - Settings → Configuration → Thresholds
-   - Adjust levels for your soil type
-
-7. **View graphs:**
-   - Go to Graphs tab
-   - Historical data loads automatically
+1. **SenseCAP credentials** — [sensecap.seeed.cc](https://sensecap.seeed.cc) → Account → Access API Keys
+2. **Rachio API key** — Rachio app → Account → API Access
+3. Open RachioSense → **Settings → Account** → enter credentials → Test Connection
+4. **Settings → Configuration → Sensor-Zone Links** → link each sensor to its zone
+5. **Settings → Configuration → Thresholds** → adjust for your soil type
+6. Open **Graphs tab** — data loads automatically
 
 ---
 
@@ -484,19 +302,78 @@ UI Views (charts, lists, cards)
 - iOS 17.0+
 - Xcode 15+
 - Swift 6
-- SenseCAP account with soil moisture sensors
-- Rachio irrigation controller
+- SenseCAP soil moisture sensors + account
+- Rachio irrigation controller + account
+
+---
+
+## 🔮 Planned Features (Next Up)
+
+### High Priority
+- [ ] **Location-based weather** — use device GPS or user-set location instead of hardcoded Phoenix coordinates
+- [ ] **SenseCraft subscription expiry alert** — check device metadata for expiry date and warn when < 30 days remaining
+- [ ] **Rachio next scheduled run** — show "Next run: Tomorrow 6:00 AM" on dashboard and zone rows
+- [ ] **Auto-water execution** — when a sensor drops below auto-water threshold, actually trigger the linked Rachio zone
+- [ ] **Notifications** — local push alerts when sensors go critical or auto-water fires
+
+### Medium Priority
+- [ ] **Widget support** — iOS home screen widget showing moisture summary
+- [ ] **Sensor detail history chart** — use stored SwiftData readings instead of re-fetching from API
+- [ ] **Zone group reordering** — drag to reorder groups on Graphs tab
+- [ ] **Flex schedule support** — better weekly minutes estimate for Rachio flex schedules
+- [ ] **Multiple Rachio devices** — UI currently shows first device only
+- [ ] **iCloud sync** — sync sensor aliases, links, and groups across devices
+
+### Nice to Have
+- [ ] **Apple Watch complication** — glanceable moisture summary
+- [ ] **Siri shortcuts** — "Hey Siri, water the tomatoes for 10 minutes"
+- [ ] **Historical watering log** — correlate Rachio run history with moisture trends
+- [ ] **CSV import** — bulk import sensor aliases from spreadsheet
+- [ ] **Share graph** — export graph as image
+
+---
+
+## 🐛 Known Issues & Technical Debt
+
+### Active Issues
+
+| Issue | Severity | Notes |
+|-------|----------|-------|
+| **SwiftData off-main-thread warning** | Low | `ModelContext` used off main queue in BackgroundRefreshManager — should use `ModelActor` |
+| **Rate limiting during initial load** | Medium | First-ever 7-day fetch hits SenseCAP 429 if app is opened repeatedly; cooldown helps but first-run can be slow |
+| **Flex schedule weekly minutes** | Low | Rachio flex schedules don't have fixed days — currently shows 1×/week estimate which is inaccurate |
+| **Weather location hardcoded** | Medium | Open-Meteo coordinates are hardcoded to Phoenix, AZ (`33.4484, -112.0740`) |
+| **Background refresh not tested** | Low | `BGAppRefreshTask` registered but iOS background task delivery is unpredictable |
+
+### Technical Debt
+
+| Item | Notes |
+|------|-------|
+| **Duplicate zone detail navigation** | `ZoneDetailView` appears in both ZonesView and potentially other contexts — ensure device is always passed |
+| **`moistureThreshold` field in SwiftData** | Field kept for DB backward compatibility but no longer used — can be migrated away in a future schema version |
+| **SensorsViewModel fetches live readings** | Sensors tab always hits the API on load; should use cached SwiftData readings like GraphsViewModel does |
+| **DashboardViewModel fetches live sensor readings** | Same issue as SensorsViewModel — creates duplicate API calls when both tabs load |
+| **No error recovery UI** | API errors are shown as banner text but there's no retry button or offline mode indicator |
+| **Graph period picker uses local state** | `localPeriod` in `SensorGraphCard` resets to default on card re-render; should persist per-card via AppStorage |
+
+### SenseCAP API Limitations
+
+| Limitation | Impact |
+|------------|--------|
+| **Rate limiting** | ~50 req/min; 7-sensor × 7-chunk parallel fetch triggers 429s |
+| **No push/webhook** | Must poll for new data; no real-time updates |
+| **24h chunk limit** | `/list_telemetry_data` returns limited results per call; must page in 24h windows |
+| **No expiry field exposed** | Subscription/license expiry not available via public API |
 
 ---
 
 ## Backup Reminder
 
-Settings are stored locally and **will be lost if the app is deleted**. 
+Settings are stored locally and **will be lost if the app is deleted**.
 
-Before uninstalling or resetting:
-1. Settings → Data & Privacy → Backup & Restore
-2. Create Backup
-3. Save the JSON file somewhere safe
+Before uninstalling: **Settings → Data & Privacy → Backup & Restore → Create Backup**
+
+Save the JSON file to Files, iCloud, or AirDrop somewhere safe.
 
 ---
 
