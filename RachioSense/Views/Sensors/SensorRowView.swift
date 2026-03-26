@@ -185,13 +185,7 @@ struct SensorRowView: View {
     }
 }
 
-private extension Date {
-    var relativeFormatted: String {
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .abbreviated
-        return formatter.localizedString(for: self, relativeTo: Date())
-    }
-}
+
 
 #Preview {
     ScrollView {

@@ -627,3 +627,13 @@ struct HapticFeedback {
         gen.notificationOccurred(type)
     }
 }
+
+// MARK: - Date Extensions
+
+extension Date {
+    var relativeFormatted: String {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .abbreviated
+        return formatter.localizedString(for: self, relativeTo: Date())
+    }
+}

@@ -43,6 +43,18 @@ final class SensorsViewModel {
 
             try? modelContext.save()
 
+            // Load existing latest readings from SwiftData as fallback
+            let allStored = (try? modelContext.fetch(FetchDescriptor<SensorReading>())) ?? []
+            // For each EUI, find the most recent stored reading
+            var storedLatest: [String: SensorReading] = [:]
+            for r in allStored {
+                if let existing = storedLatest[r.eui] {
+                    if r.recordedAt > existing.recordedAt { storedLatest[r.eui] = r }
+                } else {
+                    storedLatest[r.eui] = r
+                }
+            }
+
             // Fetch latest readings concurrently (as plain data, not SwiftData models)
             struct ReadingData: Sendable {
                 let eui: String
@@ -55,44 +67,34 @@ final class SensorsViewModel {
             
             let fetchedReadings: [ReadingData] = await withTaskGroup(of: ReadingData?.self) { group in
                 for device in devices {
-                    // Skip disabled sensors
-                    if disabledEuis.contains(device.deviceEui) {
-                        continue
-                    }
+                    if disabledEuis.contains(device.deviceEui) { continue }
                     group.addTask {
                         do {
                             let r = try await SenseCraftAPI.shared.fetchReading(eui: device.deviceEui)
-                            return ReadingData(
-                                eui: device.deviceEui,
-                                moisture: r.moisture ?? 0,
-                                tempC: r.tempC ?? 0
-                            )
+                            // Only return if we got real data
+                            guard let moisture = r.moisture else { return nil }
+                            return ReadingData(eui: device.deviceEui, moisture: moisture, tempC: r.tempC ?? 0)
                         } catch {
-                            return nil
+                            return nil  // Failed — will fall back to stored reading
                         }
                     }
                 }
                 var results: [ReadingData] = []
                 for await data in group {
-                    if let data = data {
-                        results.append(data)
-                    }
+                    if let data = data { results.append(data) }
                 }
                 return results
             }
             
-            // Create moisture lookup from plain data (for sorting)
-            let moistureLookup = Dictionary(uniqueKeysWithValues: fetchedReadings.map { ($0.eui, $0.moisture) })
+            // Merge: use fresh reading if available, fall back to last stored reading
+            var newReadings: [String: SensorReading] = [:]
             
-            // Sort sensors by moisture ascending (driest first)
-            let sortedConfigs = updatedConfigs.sorted { a, b in
-                let moistureA = moistureLookup[a.eui] ?? Double.infinity
-                let moistureB = moistureLookup[b.eui] ?? Double.infinity
-                return moistureA < moistureB
+            // First seed with stored readings as fallback
+            for (eui, stored) in storedLatest {
+                newReadings[eui] = stored
             }
             
-            // Create SwiftData models on main context
-            var newReadings: [String: SensorReading] = [:]
+            // Override with fresh readings where we got them
             for data in fetchedReadings {
                 let reading = SensorReading(
                     eui: data.eui,
@@ -104,6 +106,16 @@ final class SensorsViewModel {
                 newReadings[data.eui] = reading
             }
             _ = try? modelContext.save()
+            
+            // Create moisture lookup for sorting
+            let moistureLookup = Dictionary(uniqueKeysWithValues: newReadings.map { ($0.key, $0.value.moisture) })
+            
+            // Sort sensors by moisture ascending (driest first)
+            let sortedConfigs = updatedConfigs.sorted { a, b in
+                let moistureA = moistureLookup[a.eui] ?? Double.infinity
+                let moistureB = moistureLookup[b.eui] ?? Double.infinity
+                return moistureA < moistureB
+            }
 
             self.sensors = sortedConfigs
             self.readings = newReadings

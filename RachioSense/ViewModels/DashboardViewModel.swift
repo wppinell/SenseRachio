@@ -28,39 +28,72 @@ final class DashboardViewModel {
 
     // MARK: - Load
 
+    var senseCraftConnected: Bool = false
+    var rachioConnected: Bool = false
+    var lastSyncDate: Date? = nil
+    var forecast: WeatherAPI.Forecast? = nil
+
     @MainActor
     func load(modelContext: ModelContext) async {
         isLoading = true
         errorMessage = nil
+
+        // Always seed with stored readings first so UI never goes blank
+        let allStored = (try? modelContext.fetch(FetchDescriptor<SensorReading>())) ?? []
+        var storedLatest: [String: SensorReading] = [:]
+        for r in allStored {
+            if let existing = storedLatest[r.eui] {
+                if r.recordedAt > existing.recordedAt { storedLatest[r.eui] = r }
+            } else {
+                storedLatest[r.eui] = r
+            }
+        }
+        if !storedLatest.isEmpty {
+            self.sensorReadings = Array(storedLatest.values)
+            self.lastSyncDate = storedLatest.values.max(by: { $0.recordedAt < $1.recordedAt })?.recordedAt
+        }
 
         do {
             // Fetch sensors if credentials exist
             if KeychainService.shared.load(forKey: KeychainKey.senseCraftAPIKey) != nil {
                 let devices = try await SenseCraftAPI.shared.listDevices()
                 let readingData = await fetchReadingData(for: devices)
-                // Create SwiftData models on main actor
-                self.sensorReadings = readingData.map { data in
-                    SensorReading(
-                        eui: data.eui,
-                        moisture: data.moisture,
-                        tempC: data.tempC,
-                        recordedAt: Date()
-                    )
+                
+                if !readingData.isEmpty {
+                    // Merge: fresh overrides stored, stored fills gaps
+                    var merged = storedLatest
+                    for data in readingData {
+                        merged[data.eui] = SensorReading(eui: data.eui, moisture: data.moisture, tempC: data.tempC, recordedAt: Date())
+                    }
+                    self.sensorReadings = Array(merged.values)
+                    self.lastSyncDate = Date()
                 }
+                self.senseCraftConnected = true
             } else {
                 self.sensorReadings = []
+                self.senseCraftConnected = false
             }
 
             // Fetch zones if credentials exist
             if KeychainService.shared.load(forKey: KeychainKey.rachioAPIKey) != nil {
                 self.zones = (try? await RachioAPI.shared.getDevices()) ?? []
+                self.rachioConnected = true
             } else {
                 self.zones = []
+                self.rachioConnected = false
+            }
+
+            // Fetch weather in parallel (don't block sensors/zones loading)
+            if forecast == nil {
+                Task {
+                    forecast = try? await WeatherAPI.shared.fetchForecast(latitude: 33.4484, longitude: -112.0740)
+                }
             }
 
             isLoading = false
         } catch {
             self.errorMessage = error.localizedDescription
+            self.senseCraftConnected = false
             isLoading = false
         }
     }
@@ -78,11 +111,8 @@ final class DashboardViewModel {
                 group.addTask {
                     do {
                         let r = try await SenseCraftAPI.shared.fetchReading(eui: device.deviceEui)
-                        return ReadingData(
-                            eui: device.deviceEui,
-                            moisture: r.moisture ?? 0,
-                            tempC: r.tempC ?? 0
-                        )
+                        guard let moisture = r.moisture else { return nil }
+                        return ReadingData(eui: device.deviceEui, moisture: moisture, tempC: r.tempC ?? 0)
                     } catch {
                         return nil
                     }

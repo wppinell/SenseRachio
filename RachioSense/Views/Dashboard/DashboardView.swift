@@ -112,6 +112,7 @@ struct DashboardView: View {
                     .padding(.horizontal, DS.Spacing.lg)
                 } else {
                     moistureCard
+                    statusCard
                     weatherCard
                 }
 
@@ -217,6 +218,88 @@ struct DashboardView: View {
         }
     }
 
+    // MARK: - STATUS Card
+
+    private var statusCard: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("SYSTEM STATUS")
+                .font(DS.Font.sectionHeader)
+                .foregroundStyle(DS.Color.textSecondary)
+                .tracking(0.8)
+                .padding(.horizontal, DS.Spacing.lg)
+                .padding(.top, DS.Spacing.xl)
+                .padding(.bottom, DS.Spacing.xs)
+
+            VStack(alignment: .leading, spacing: DS.Spacing.md) {
+                // SenseCraft row
+                HStack(spacing: DS.Spacing.sm) {
+                    Image(systemName: "sensor.fill")
+                        .font(.system(size: 13))
+                        .foregroundStyle(DS.Color.accent)
+                        .frame(width: 28, height: 28)
+                        .background(DS.Color.accentMuted)
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                    
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: DS.Spacing.xs) {
+                            Text("SenseCraft")
+                                .font(DS.Font.cardTitle)
+                            Circle()
+                                .fill(viewModel.senseCraftConnected ? DS.Color.online : DS.Color.error)
+                                .frame(width: 7, height: 7)
+                            Text(viewModel.senseCraftConnected ? "Connected" : "Disconnected")
+                                .font(DS.Font.caption)
+                                .foregroundStyle(viewModel.senseCraftConnected ? DS.Color.online : DS.Color.error)
+                        }
+                        HStack(spacing: DS.Spacing.xs) {
+                            Text("\(visibleReadings.count) sensors")
+                                .font(DS.Font.caption)
+                                .foregroundStyle(DS.Color.textSecondary)
+                            if let sync = viewModel.lastSyncDate {
+                                Text("· synced \(sync.relativeFormatted)")
+                                    .font(DS.Font.caption)
+                                    .foregroundStyle(DS.Color.textTertiary)
+                            }
+                        }
+                    }
+                }
+                
+                Divider()
+                
+                // Rachio row
+                HStack(spacing: DS.Spacing.sm) {
+                    Image(systemName: "drop.fill")
+                        .font(.system(size: 13))
+                        .foregroundStyle(DS.Color.accent)
+                        .frame(width: 28, height: 28)
+                        .background(DS.Color.accentMuted)
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
+                    
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: DS.Spacing.xs) {
+                            Text("Rachio")
+                                .font(DS.Font.cardTitle)
+                            Circle()
+                                .fill(viewModel.rachioConnected ? DS.Color.online : DS.Color.error)
+                                .frame(width: 7, height: 7)
+                            Text(viewModel.rachioConnected ? "Connected" : "Disconnected")
+                                .font(DS.Font.caption)
+                                .foregroundStyle(viewModel.rachioConnected ? DS.Color.online : DS.Color.error)
+                        }
+                        if let device = viewModel.zones.first {
+                            Text("\(device.name) · \(viewModel.zones.flatMap(\.zones).filter(\.enabled).count) zones")
+                                .font(DS.Font.caption)
+                                .foregroundStyle(DS.Color.textSecondary)
+                        }
+                    }
+                }
+            }
+            .padding(DS.Spacing.lg)
+            .dsCard()
+            .padding(.horizontal, DS.Spacing.lg)
+        }
+    }
+
     // MARK: - WEATHER Card
 
     private var weatherCard: some View {
@@ -229,7 +312,7 @@ struct DashboardView: View {
                 .padding(.top, DS.Spacing.xl)
                 .padding(.bottom, DS.Spacing.xs)
 
-            WeatherForecastCard(tempUnit: tempUnit)
+            WeatherForecastCard(forecast: viewModel.forecast, tempUnit: tempUnit)
                 .padding(.horizontal, DS.Spacing.lg)
         }
     }
@@ -238,18 +321,12 @@ struct DashboardView: View {
 // MARK: - Weather Forecast Card
 
 private struct WeatherForecastCard: View {
+    let forecast: WeatherAPI.Forecast?
     let tempUnit: String
-    @State private var forecast: WeatherAPI.Forecast?
-    @State private var isLoading = true
-    @State private var error: String?
-    
-    // Default to Phoenix, AZ — could be made configurable
-    private let latitude = 33.4484
-    private let longitude = -112.0740
     
     var body: some View {
         VStack(spacing: 0) {
-            if isLoading {
+            if forecast == nil {
                 HStack {
                     ProgressView()
                     Text("Loading…")
@@ -274,31 +351,9 @@ private struct WeatherForecastCard: View {
                 }
                 .padding(.horizontal, DS.Spacing.sm)
                 .padding(.vertical, DS.Spacing.xs)
-            } else if let error {
-                HStack {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundStyle(DS.Color.warning)
-                    Text(error)
-                        .font(DS.Font.caption)
-                        .foregroundStyle(DS.Color.textSecondary)
-                }
-                .frame(height: 50)
             }
         }
         .dsCard()
-        .task {
-            await loadForecast()
-        }
-    }
-    
-    private func loadForecast() async {
-        do {
-            forecast = try await WeatherAPI.shared.fetchForecast(latitude: latitude, longitude: longitude)
-            isLoading = false
-        } catch {
-            self.error = "Unable to load forecast"
-            isLoading = false
-        }
     }
     
     @ViewBuilder
