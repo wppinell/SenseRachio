@@ -11,7 +11,7 @@ struct RachioSenseApp: App {
     init() {
         do {
             modelContainer = try ModelContainer(for: SensorConfig.self, ZoneConfig.self, SensorReading.self,
-                                                    SensorGroup.self, DashboardCardOrder.self)
+                                                    ZoneGroup.self, DashboardCardOrder.self)
         } catch {
             fatalError("Failed to create ModelContainer: \(error)")
         }

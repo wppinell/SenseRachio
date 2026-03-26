@@ -111,7 +111,7 @@ struct PrivacyView: View {
         try? modelContext.delete(model: SensorConfig.self)
         try? modelContext.delete(model: ZoneConfig.self)
         try? modelContext.delete(model: SensorReading.self)
-        try? modelContext.delete(model: SensorGroup.self)
+        try? modelContext.delete(model: ZoneGroup.self)
         try? modelContext.save()
         HapticFeedback.notification(.success)
     }

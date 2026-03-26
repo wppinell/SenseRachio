@@ -50,8 +50,15 @@ final class SensorsViewModel {
                 let tempC: Double
             }
             
+            // Get disabled sensor EUIs to skip
+            let disabledEuis = Set(updatedConfigs.filter { $0.isHiddenFromGraphs }.map { $0.eui })
+            
             let fetchedReadings: [ReadingData] = await withTaskGroup(of: ReadingData?.self) { group in
                 for device in devices {
+                    // Skip disabled sensors
+                    if disabledEuis.contains(device.deviceEui) {
+                        continue
+                    }
                     group.addTask {
                         do {
                             let r = try await SenseCraftAPI.shared.fetchReading(eui: device.deviceEui)

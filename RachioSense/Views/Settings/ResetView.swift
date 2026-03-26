@@ -207,7 +207,7 @@ struct ResetView: View {
             _ = try? modelContext.delete(model: SensorConfig.self)
             _ = try? modelContext.delete(model: ZoneConfig.self)
             _ = try? modelContext.delete(model: SensorReading.self)
-            _ = try? modelContext.delete(model: SensorGroup.self)
+            _ = try? modelContext.delete(model: ZoneGroup.self)
             _ = try? modelContext.delete(model: DashboardCardOrder.self)
             _ = try? modelContext.save()
             resetAppStorageDefaults()

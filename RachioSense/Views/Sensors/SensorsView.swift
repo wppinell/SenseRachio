@@ -4,7 +4,7 @@ import SwiftData
 struct SensorsView: View {
     @Environment(\.modelContext) private var modelContext
     @State private var viewModel = SensorsViewModel()
-    @Query(sort: \SensorGroup.sortOrder) private var groups: [SensorGroup]
+    @Query(sort: \ZoneGroup.sortOrder) private var groups: [ZoneGroup]
     @State private var moistureFilter: MoistureFilter = .all
     @State private var selectedGroupId: String? = nil
 

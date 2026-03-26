@@ -12,7 +12,7 @@ struct SensorDetailView: View {
 
     @Query private var allReadings: [SensorReading]
     @Query private var zones: [ZoneConfig]
-    @Query(sort: \SensorGroup.sortOrder) private var groups: [SensorGroup]
+    @Query(sort: \ZoneGroup.sortOrder) private var groups: [ZoneGroup]
 
     @State private var isRunningZone = false
     @State private var runError: String? = nil
@@ -27,7 +27,7 @@ struct SensorDetailView: View {
         return zones.first(where: { $0.id == id })
     }
 
-    private var sensorGroup: SensorGroup? {
+    private var sensorGroup: ZoneGroup? {
         guard let gid = sensor.groupId else { return nil }
         return groups.first(where: { $0.id == gid })
     }
@@ -92,6 +92,11 @@ struct SensorDetailView: View {
                     groupCard(group: group)
                         .padding(.horizontal, DS.Spacing.lg)
                 }
+
+                // Settings
+                DSSectionHeader(title: "Settings")
+                settingsCard
+                    .padding(.horizontal, DS.Spacing.lg)
 
                 // Run Linked Zone button
                 if linkedZone != nil {
@@ -296,7 +301,7 @@ struct SensorDetailView: View {
 
     // MARK: - Group Card
 
-    private func groupCard(group: SensorGroup) -> some View {
+    private func groupCard(group: ZoneGroup) -> some View {
         HStack(spacing: DS.Spacing.md) {
             Image(systemName: group.iconName)
                 .font(.system(size: 14))
@@ -311,11 +316,66 @@ struct SensorDetailView: View {
 
             Spacer()
 
-            Text("\(group.assignedSensorIds.count) sensors")
+            Text("\(group.assignedZoneIds.count) zones")
                 .font(DS.Font.caption)
                 .foregroundStyle(DS.Color.textSecondary)
         }
         .padding(DS.Spacing.lg)
+        .dsCard()
+    }
+
+    // MARK: - Settings Card
+
+    private var settingsCard: some View {
+        VStack(spacing: 0) {
+            // Alias
+            HStack {
+                Text("Alias")
+                    .font(DS.Font.cardTitle)
+                    .foregroundStyle(DS.Color.textPrimary)
+                Spacer()
+                TextField("Sensor alias", text: Binding(
+                    get: { sensor.name },
+                    set: { newValue in
+                        sensor.name = newValue
+                        try? modelContext.save()
+                    }
+                ))
+                .font(DS.Font.cardBody)
+                .foregroundStyle(DS.Color.textSecondary)
+                .multilineTextAlignment(.trailing)
+                .textFieldStyle(.plain)
+            }
+            .padding(DS.Spacing.lg)
+            
+            Divider().padding(.leading, DS.Spacing.lg)
+            
+            // Enable/Disable Sensor
+            HStack {
+                Label("Enabled", systemImage: "power")
+                    .font(DS.Font.cardTitle)
+                    .foregroundStyle(DS.Color.textPrimary)
+                Spacer()
+                Toggle("", isOn: Binding(
+                    get: { !sensor.isHiddenFromGraphs },
+                    set: { newValue in
+                        sensor.isHiddenFromGraphs = !newValue
+                        _ = try? modelContext.save()
+                    }
+                ))
+                .labelsHidden()
+                .tint(DS.Color.accent)
+            }
+            .padding(DS.Spacing.lg)
+            
+            if sensor.isHiddenFromGraphs {
+                Text("Disabled sensors are grayed out and won't receive new readings.")
+                    .font(DS.Font.caption)
+                    .foregroundStyle(DS.Color.textTertiary)
+                    .padding(.horizontal, DS.Spacing.lg)
+                    .padding(.bottom, DS.Spacing.lg)
+            }
+        }
         .dsCard()
     }
 

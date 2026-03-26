@@ -15,6 +15,11 @@ struct DashboardView: View {
     @AppStorage(AppStorageKey.windSkipThreshold) private var windThreshold = 30.0
 
     @Query(sort: \SensorReading.recordedAt) private var storedReadings: [SensorReading]
+    @Query private var sensorConfigs: [SensorConfig]
+    
+    private var sensorNameByEUI: [String: String] {
+        Dictionary(uniqueKeysWithValues: sensorConfigs.map { ($0.eui, $0.name) })
+    }
 
     private var top4Sensors: [SensorReading] {
         Array(viewModel.sensorReadings.sorted(by: { $0.moisture < $1.moisture }).prefix(4))
@@ -143,7 +148,7 @@ struct DashboardView: View {
                     // Sensor dots — top 4 sensors
                     HStack(spacing: DS.Spacing.lg) {
                         ForEach(top4Sensors, id: \.eui) { reading in
-                            MoistureDotView(reading: reading)
+                            MoistureDotView(reading: reading, name: sensorNameByEUI[reading.eui])
                         }
                         Spacer()
                     }
@@ -277,8 +282,20 @@ struct DashboardView: View {
 
 private struct MoistureDotView: View {
     let reading: SensorReading
+    var name: String? = nil
 
     private var color: Color { DS.Color.moisture(reading.moisture) }
+    
+    private var displayName: String {
+        if let name = name, !name.isEmpty {
+            // Abbreviate long names
+            if name.count > 8 {
+                return String(name.prefix(7)) + "…"
+            }
+            return name
+        }
+        return String(reading.eui.suffix(4))
+    }
 
     var body: some View {
         VStack(spacing: DS.Spacing.xs) {
@@ -295,7 +312,7 @@ private struct MoistureDotView: View {
                     .font(.system(size: 11, weight: .bold, design: .rounded))
                     .foregroundStyle(color)
             }
-            Text(String(reading.eui.suffix(4)))
+            Text(displayName)
                 .font(DS.Font.footnote)
                 .foregroundStyle(DS.Color.textTertiary)
                 .lineLimit(1)

@@ -38,26 +38,43 @@ struct SensorRowView: View {
         return String(format: "%.1f°C", tempC)
     }
 
+    private var isDisabled: Bool { sensor.isHiddenFromGraphs }
+    
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.sm) {
             HStack(alignment: .top, spacing: DS.Spacing.md) {
                 // Status indicator
                 if indicatorStyle == "coloredDot" {
                     DSStatusDot(
-                        status: !hasReading ? .unknown : moisture < 25 ? .offline : moisture < 40 ? .warning : .online,
+                        status: isDisabled ? .unknown : (!hasReading ? .unknown : moisture < 25 ? .offline : moisture < 40 ? .warning : .online),
                         size: 10
                     )
                     .padding(.top, 4)
                 }
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(primaryText)
-                        .font(DS.Font.cardTitle)
-                        .foregroundStyle(indicatorStyle == "coloredBackground" ? moistureColor : DS.Color.textPrimary)
-                    if let secondary = secondaryText {
+                    HStack(spacing: DS.Spacing.xs) {
+                        Text(primaryText)
+                            .font(DS.Font.cardTitle)
+                            .foregroundStyle(isDisabled ? DS.Color.textTertiary : (indicatorStyle == "coloredBackground" ? moistureColor : DS.Color.textPrimary))
+                        if isDisabled {
+                            Text("DISABLED")
+                                .font(.system(size: 9, weight: .semibold))
+                                .foregroundStyle(DS.Color.textTertiary)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(DS.Color.textTertiary.opacity(0.15))
+                                .clipShape(Capsule())
+                        }
+                    }
+                    if let secondary = secondaryText, !isDisabled {
                         Text(secondary)
                             .font(DS.Font.caption)
                             .foregroundStyle(DS.Color.textSecondary)
+                    } else if isDisabled {
+                        Text("Not collecting data")
+                            .font(DS.Font.caption)
+                            .foregroundStyle(DS.Color.textTertiary)
                     } else if !hasReading {
                         Text("No data yet")
                             .font(DS.Font.caption)

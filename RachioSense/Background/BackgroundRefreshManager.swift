@@ -86,6 +86,11 @@ final class BackgroundRefreshManager {
             
             let fetchedReadings: [FetchedReading] = await withTaskGroup(of: FetchedReading?.self) { group in
                 for config in sensorConfigs {
+                    // Skip disabled sensors
+                    if config.isHiddenFromGraphs {
+                        continue
+                    }
+                    
                     let eui = config.eui
                     let name = config.name
                     let threshold = config.moistureThreshold

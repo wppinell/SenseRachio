@@ -57,21 +57,19 @@ class SensorReading {
 }
 
 @Model
-class SensorGroup {
+class ZoneGroup {
     var id: String
     var name: String
     var iconName: String
     var sortOrder: Int
-    var assignedSensorIds: [String]
     var assignedZoneIds: [String]
 
     init(id: String = UUID().uuidString, name: String, iconName: String = "circle.hexagongrid",
-         sortOrder: Int = 0, assignedSensorIds: [String] = [], assignedZoneIds: [String] = []) {
+         sortOrder: Int = 0, assignedZoneIds: [String] = []) {
         self.id = id
         self.name = name
         self.iconName = iconName
         self.sortOrder = sortOrder
-        self.assignedSensorIds = assignedSensorIds
         self.assignedZoneIds = assignedZoneIds
     }
 }

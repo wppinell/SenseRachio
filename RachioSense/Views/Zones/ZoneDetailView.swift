@@ -8,7 +8,7 @@ struct ZoneDetailView: View {
     let onStop: () -> Void
 
     @Query private var sensors: [SensorConfig]
-    @Query(sort: \SensorGroup.sortOrder) private var groups: [SensorGroup]
+    @Query(sort: \ZoneGroup.sortOrder) private var groups: [ZoneGroup]
     @AppStorage(AppStorageKey.durationUnit) private var durationUnit = "minutes"
 
     @State private var selectedDuration = 10
@@ -18,7 +18,7 @@ struct ZoneDetailView: View {
         sensors.filter { $0.linkedZoneId == zone.id }
     }
 
-    private var zoneGroup: SensorGroup? {
+    private var zoneGroup: ZoneGroup? {
         groups.first(where: { $0.assignedZoneIds.contains(zone.id) })
     }
 
@@ -259,7 +259,7 @@ struct ZoneDetailView: View {
 
     // MARK: - Group Card
 
-    private func groupCard(group: SensorGroup) -> some View {
+    private func groupCard(group: ZoneGroup) -> some View {
         HStack(spacing: DS.Spacing.md) {
             Image(systemName: group.iconName)
                 .font(.system(size: 14))

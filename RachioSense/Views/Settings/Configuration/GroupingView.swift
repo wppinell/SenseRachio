@@ -2,8 +2,7 @@ import SwiftUI
 import SwiftData
 
 struct GroupingView: View {
-    @Query(sort: \SensorGroup.sortOrder) private var groups: [SensorGroup]
-    @Query private var sensors: [SensorConfig]
+    @Query(sort: \ZoneGroup.sortOrder) private var groups: [ZoneGroup]
     @Environment(\.modelContext) private var modelContext
     @AppStorage(AppStorageKey.sensorGrouping) private var sensorGrouping = "none"
     @AppStorage(AppStorageKey.zoneGrouping) private var zoneGrouping = "none"
@@ -11,7 +10,6 @@ struct GroupingView: View {
     @State private var showAddGroup = false
     @State private var newGroupName = ""
     @State private var newGroupIcon = "circle.hexagongrid"
-    @State private var groupToDelete: SensorGroup? = nil
 
     private let iconOptions = [
         "circle.hexagongrid", "leaf.fill", "drop.fill", "sun.max.fill",
@@ -44,7 +42,7 @@ struct GroupingView: View {
                 } else {
                     ForEach(groups) { group in
                         NavigationLink {
-                            GroupDetailView(group: group, sensors: sensors)
+                            GroupDetailView(group: group)
                         } label: {
                             HStack(spacing: DS.Spacing.md) {
                                 Image(systemName: group.iconName)
@@ -56,7 +54,7 @@ struct GroupingView: View {
 
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(group.name).font(DS.Font.cardTitle)
-                                    Text("\(group.assignedSensorIds.count) sensors · \(group.assignedZoneIds.count) zones")
+                                    Text("\(group.assignedZoneIds.count) zones")
                                         .font(DS.Font.caption)
                                         .foregroundStyle(DS.Color.textSecondary)
                                 }
@@ -80,7 +78,7 @@ struct GroupingView: View {
             }
         }
         .listStyle(.insetGrouped)
-        .navigationTitle("Grouping")
+        .navigationTitle("Zone Display Grouping")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -141,7 +139,7 @@ struct GroupingView: View {
     }
 
     private func addGroup() {
-        let group = SensorGroup(
+        let group = ZoneGroup(
             name: newGroupName.trimmingCharacters(in: .whitespaces),
             iconName: newGroupIcon,
             sortOrder: groups.count
@@ -161,11 +159,10 @@ struct GroupingView: View {
     }
 }
 
-// MARK: - Group Detail (EditGroupView)
+// MARK: - Group Detail
 
 private struct GroupDetailView: View {
-    let group: SensorGroup
-    let sensors: [SensorConfig]
+    let group: ZoneGroup
     @Environment(\.modelContext) private var modelContext
     @Query private var zones: [ZoneConfig]
 
@@ -186,7 +183,7 @@ private struct GroupDetailView: View {
                     .onSubmit { saveName() }
             }
 
-            // Icon picker (emoji grid)
+            // Icon picker
             Section("Icon") {
                 LazyVGrid(columns: Array(repeating: .init(.flexible()), count: 6), spacing: DS.Spacing.md) {
                     ForEach(iconOptions, id: \.self) { icon in
@@ -210,34 +207,6 @@ private struct GroupDetailView: View {
             .listRowBackground(Color.clear)
             .listRowInsets(.init())
 
-            // Sensors checkboxes
-            Section {
-                if sensors.isEmpty {
-                    Text("No sensors available")
-                        .foregroundStyle(DS.Color.textTertiary)
-                        .font(DS.Font.cardBody)
-                } else {
-                    ForEach(sensors) { sensor in
-                        let isAssigned = group.assignedSensorIds.contains(sensor.id)
-                        Button {
-                            toggleSensor(sensor)
-                        } label: {
-                            HStack {
-                                Image(systemName: isAssigned ? "checkmark.circle.fill" : "circle")
-                                    .foregroundStyle(isAssigned ? DS.Color.online : DS.Color.textTertiary)
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(sensor.name)
-                                        .foregroundStyle(DS.Color.textPrimary)
-                                    Text(sensor.eui)
-                                        .font(DS.Font.mono)
-                                        .foregroundStyle(DS.Color.textTertiary)
-                                }
-                            }
-                        }
-                    }
-                }
-            } header: { Text("Sensors (\(group.assignedSensorIds.count))") }
-
             // Zones checkboxes
             Section {
                 if zones.isEmpty {
@@ -260,6 +229,7 @@ private struct GroupDetailView: View {
                     }
                 }
             } header: { Text("Zones (\(group.assignedZoneIds.count))") }
+             footer: { Text("Sensors linked to these zones will appear together in Graphs.") }
 
             // Delete button
             Section {
@@ -283,17 +253,6 @@ private struct GroupDetailView: View {
         let trimmed = groupName.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return }
         group.name = trimmed
-        try? modelContext.save()
-    }
-
-    private func toggleSensor(_ sensor: SensorConfig) {
-        if group.assignedSensorIds.contains(sensor.id) {
-            group.assignedSensorIds.removeAll(where: { $0 == sensor.id })
-            sensor.groupId = nil
-        } else {
-            group.assignedSensorIds.append(sensor.id)
-            sensor.groupId = group.id
-        }
         try? modelContext.save()
     }
 

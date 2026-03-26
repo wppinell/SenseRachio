@@ -6,12 +6,6 @@ struct GraphsView: View {
     @AppStorage(AppStorageKey.trendChartPeriod) private var chartPeriod = "24h"
 
     @State private var viewModel = GraphsViewModel()
-    @State private var selectedMode: GraphsMode = .graphs
-
-    enum GraphsMode: String, CaseIterable {
-        case graphs = "Graphs"
-        case missionControl = "Mission Control"
-    }
 
     var body: some View {
         NavigationStack {
@@ -23,9 +17,9 @@ struct GraphsView: View {
                         message: "Connect your SenseCap account in Settings to view sensor graphs."
                     )
                 } else if viewModel.isLoading {
-                    DSLoadingState(message: "Loading sensor data…")
+                    DSLoadingState(label: "Loading sensor data…")
                 } else {
-                    mainContent
+                    graphsScrollContent
                 }
             }
             .navigationTitle("Graphs")
@@ -42,41 +36,13 @@ struct GraphsView: View {
         }
     }
 
-    // MARK: - Main Content
-
-    @ViewBuilder
-    private var mainContent: some View {
-        if viewModel.isMissionControlAvailable {
-            VStack(spacing: 0) {
-                Picker("Mode", selection: $selectedMode) {
-                    ForEach(GraphsMode.allCases, id: \.self) { mode in
-                        Text(mode.rawValue).tag(mode)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .padding(.horizontal, DS.Spacing.lg)
-                .padding(.vertical, DS.Spacing.md)
-                .background(DS.Color.background)
-
-                Divider()
-
-                if selectedMode == .graphs {
-                    graphsScrollContent
-                } else {
-                    MissionControlView(viewModel: viewModel)
-                }
-            }
-            .dsBackground()
-        } else {
-            graphsScrollContent
-        }
-    }
-
-    // MARK: - Graphs Scroll Content
+    // MARK: - Graphs Content
 
     @ViewBuilder
     private var graphsScrollContent: some View {
-        if viewModel.visibleSensors.isEmpty {
+        let hasAnySensors = !viewModel.zonesWithLinkedSensors.isEmpty || !viewModel.unlinkedSensors.isEmpty
+
+        if !hasAnySensors && viewModel.zoneGroups.isEmpty {
             DSEmptyState(
                 icon: "chart.xyaxis.line",
                 title: "No Sensors",
@@ -85,25 +51,22 @@ struct GraphsView: View {
         } else {
             ScrollView {
                 VStack(spacing: DS.Spacing.md) {
-                    let hasGroups = !viewModel.groupsWithSensors.isEmpty
-
-                    if hasGroups {
-                        // One card per group
-                        ForEach(viewModel.groupsWithSensors) { group in
+                    if viewModel.zoneGroups.isEmpty {
+                        // Default: one graph per zone that has linked sensors
+                        ForEach(viewModel.zonesWithLinkedSensors) { zone in
                             SensorGraphCard(
-                                title: group.name,
-                                sensors: viewModel.visibleSensors(inGroup: group.id),
+                                title: zone.name,
+                                sensors: viewModel.sensors(linkedTo: zone.id),
                                 readingsFor: { eui, period in
                                     viewModel.readings(for: eui, period: period)
                                 },
                                 chartPeriod: $chartPeriod
                             )
                         }
-                        // Ungrouped sensors card (if any)
-                        if !viewModel.ungroupedVisibleSensors.isEmpty {
+                        if !viewModel.unlinkedSensors.isEmpty {
                             SensorGraphCard(
-                                title: "Other Sensors",
-                                sensors: viewModel.ungroupedVisibleSensors,
+                                title: "Unlinked Sensors",
+                                sensors: viewModel.unlinkedSensors,
                                 readingsFor: { eui, period in
                                     viewModel.readings(for: eui, period: period)
                                 },
@@ -111,15 +74,30 @@ struct GraphsView: View {
                             )
                         }
                     } else {
-                        // No groups — single card with all sensors
-                        SensorGraphCard(
-                            title: "All Sensors",
-                            sensors: viewModel.visibleSensors,
-                            readingsFor: { eui, period in
-                                viewModel.readings(for: eui, period: period)
-                            },
-                            chartPeriod: $chartPeriod
-                        )
+                        // One graph per zone group
+                        ForEach(viewModel.zoneGroups) { group in
+                            let groupSensors = viewModel.sensors(forGroup: group)
+                            if !groupSensors.isEmpty {
+                                SensorGraphCard(
+                                    title: group.name,
+                                    sensors: groupSensors,
+                                    readingsFor: { eui, period in
+                                        viewModel.readings(for: eui, period: period)
+                                    },
+                                    chartPeriod: $chartPeriod
+                                )
+                            }
+                        }
+                        if !viewModel.unlinkedSensors.isEmpty {
+                            SensorGraphCard(
+                                title: "Unlinked Sensors",
+                                sensors: viewModel.unlinkedSensors,
+                                readingsFor: { eui, period in
+                                    viewModel.readings(for: eui, period: period)
+                                },
+                                chartPeriod: $chartPeriod
+                            )
+                        }
                     }
                 }
                 .padding(.horizontal, DS.Spacing.lg)
