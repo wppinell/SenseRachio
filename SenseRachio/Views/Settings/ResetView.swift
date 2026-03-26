@@ -141,50 +141,50 @@ struct ResetView: View {
     private func performAction(_ action: ConfirmationAction) {
         switch action {
         case .scClearCache:
-            try? modelContext.delete(model: SensorConfig.self)
-            try? modelContext.delete(model: SensorReading.self)
-            try? modelContext.save()
+            _ = try? modelContext.delete(model: SensorConfig.self)
+            _ = try? modelContext.delete(model: SensorReading.self)
+            _ = try? modelContext.save()
             completedAction = "SenseCraft sensor cache cleared."
 
         case .scClearCreds:
-            try? KeychainService.shared.delete(forKey: KeychainKey.senseCraftAPIKey)
-            try? KeychainService.shared.delete(forKey: KeychainKey.senseCraftAPISecret)
+            _ = try? KeychainService.shared.delete(forKey: KeychainKey.senseCraftAPIKey)
+            _ = try? KeychainService.shared.delete(forKey: KeychainKey.senseCraftAPISecret)
             appState.refreshCredentialStatus()
             completedAction = "SenseCraft credentials removed."
 
         case .scFull:
-            try? KeychainService.shared.delete(forKey: KeychainKey.senseCraftAPIKey)
-            try? KeychainService.shared.delete(forKey: KeychainKey.senseCraftAPISecret)
-            try? modelContext.delete(model: SensorConfig.self)
-            try? modelContext.delete(model: SensorReading.self)
-            try? modelContext.save()
+            _ = try? KeychainService.shared.delete(forKey: KeychainKey.senseCraftAPIKey)
+            _ = try? KeychainService.shared.delete(forKey: KeychainKey.senseCraftAPISecret)
+            _ = try? modelContext.delete(model: SensorConfig.self)
+            _ = try? modelContext.delete(model: SensorReading.self)
+            _ = try? modelContext.save()
             appState.refreshCredentialStatus()
             completedAction = "SenseCraft full reset complete."
 
         case .rachioClearCache:
-            try? modelContext.delete(model: ZoneConfig.self)
-            try? modelContext.save()
+            _ = try? modelContext.delete(model: ZoneConfig.self)
+            _ = try? modelContext.save()
             completedAction = "Rachio zone cache cleared."
 
         case .rachioClearCreds:
-            try? KeychainService.shared.delete(forKey: KeychainKey.rachioAPIKey)
-            try? KeychainService.shared.delete(forKey: KeychainKey.rachioDeviceIds)
+            _ = try? KeychainService.shared.delete(forKey: KeychainKey.rachioAPIKey)
+            _ = try? KeychainService.shared.delete(forKey: KeychainKey.rachioDeviceIds)
             appState.refreshCredentialStatus()
             completedAction = "Rachio credentials removed."
 
         case .rachioFull:
-            try? KeychainService.shared.delete(forKey: KeychainKey.rachioAPIKey)
-            try? KeychainService.shared.delete(forKey: KeychainKey.rachioDeviceIds)
-            try? modelContext.delete(model: ZoneConfig.self)
-            try? modelContext.save()
+            _ = try? KeychainService.shared.delete(forKey: KeychainKey.rachioAPIKey)
+            _ = try? KeychainService.shared.delete(forKey: KeychainKey.rachioDeviceIds)
+            _ = try? modelContext.delete(model: ZoneConfig.self)
+            _ = try? modelContext.save()
             appState.refreshCredentialStatus()
             completedAction = "Rachio full reset complete."
 
         case .appClearCache:
-            try? modelContext.delete(model: SensorConfig.self)
-            try? modelContext.delete(model: ZoneConfig.self)
-            try? modelContext.delete(model: SensorReading.self)
-            try? modelContext.save()
+            _ = try? modelContext.delete(model: SensorConfig.self)
+            _ = try? modelContext.delete(model: ZoneConfig.self)
+            _ = try? modelContext.delete(model: SensorReading.self)
+            _ = try? modelContext.save()
             completedAction = "All cache cleared."
 
         case .appClearLinks:
@@ -195,7 +195,7 @@ struct ResetView: View {
                 c.autoWaterEnabled = false
                 c.moistureThreshold = nil
             }
-            try? modelContext.save()
+            _ = try? modelContext.save()
             completedAction = "All sensor-zone links removed."
 
         case .appResetSettings:
@@ -204,12 +204,12 @@ struct ResetView: View {
 
         case .allReset:
             appState.clearAll()
-            try? modelContext.delete(model: SensorConfig.self)
-            try? modelContext.delete(model: ZoneConfig.self)
-            try? modelContext.delete(model: SensorReading.self)
-            try? modelContext.delete(model: SensorGroup.self)
-            try? modelContext.delete(model: DashboardCardOrder.self)
-            try? modelContext.save()
+            _ = try? modelContext.delete(model: SensorConfig.self)
+            _ = try? modelContext.delete(model: ZoneConfig.self)
+            _ = try? modelContext.delete(model: SensorReading.self)
+            _ = try? modelContext.delete(model: SensorGroup.self)
+            _ = try? modelContext.delete(model: DashboardCardOrder.self)
+            _ = try? modelContext.save()
             resetAppStorageDefaults()
             completedAction = "Complete reset done. The app has been restored to its initial state."
         }

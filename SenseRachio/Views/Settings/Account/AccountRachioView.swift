@@ -187,7 +187,7 @@ struct AccountRachioView: View {
         testResult = nil
         defer { isTesting = false }
 
-        try? KeychainService.shared.save(apiKey, forKey: KeychainKey.rachioAPIKey)
+        _ = try? KeychainService.shared.save(apiKey, forKey: KeychainKey.rachioAPIKey)
 
         do {
             let devices = try await RachioAPI.shared.getDevices()
@@ -209,8 +209,8 @@ struct AccountRachioView: View {
     }
 
     private func signOut() {
-        try? KeychainService.shared.delete(forKey: KeychainKey.rachioAPIKey)
-        try? KeychainService.shared.delete(forKey: KeychainKey.rachioDeviceIds)
+        _ = try? KeychainService.shared.delete(forKey: KeychainKey.rachioAPIKey)
+        _ = try? KeychainService.shared.delete(forKey: KeychainKey.rachioDeviceIds)
         appState.refreshCredentialStatus()
         apiKey = ""
         deviceInfo = nil

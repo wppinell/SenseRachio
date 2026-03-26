@@ -11,8 +11,10 @@ final class SensorsViewModel {
 
     // MARK: - Load Sensors
 
+    @MainActor
     func loadSensors(modelContext: ModelContext) async {
-        await MainActor.run { isLoading = true; errorMessage = nil }
+        isLoading = true
+        errorMessage = nil
 
         do {
             let devices = try await SenseCraftAPI.shared.listDevices()
@@ -41,51 +43,67 @@ final class SensorsViewModel {
 
             try? modelContext.save()
 
-            // Fetch latest readings concurrently
-            var newReadings: [String: SensorReading] = [:]
-            await withTaskGroup(of: (String, SensorReading?).self) { group in
+            // Fetch latest readings concurrently (as plain data, not SwiftData models)
+            struct ReadingData: Sendable {
+                let eui: String
+                let moisture: Double
+                let tempC: Double
+            }
+            
+            let fetchedReadings: [ReadingData] = await withTaskGroup(of: ReadingData?.self) { group in
                 for device in devices {
                     group.addTask {
                         do {
                             let r = try await SenseCraftAPI.shared.fetchReading(eui: device.deviceEui)
-                            let reading = SensorReading(
+                            return ReadingData(
                                 eui: device.deviceEui,
                                 moisture: r.moisture ?? 0,
-                                tempC: r.tempC ?? 0,
-                                recordedAt: Date()
+                                tempC: r.tempC ?? 0
                             )
-                            return (device.deviceEui, reading)
                         } catch {
-                            return (device.deviceEui, nil)
+                            return nil
                         }
                     }
                 }
-                for await (eui, reading) in group {
-                    if let reading = reading {
-                        newReadings[eui] = reading
-                        modelContext.insert(reading)
+                var results: [ReadingData] = []
+                for await data in group {
+                    if let data = data {
+                        results.append(data)
                     }
                 }
+                return results
             }
-            try? modelContext.save()
-
+            
+            // Create moisture lookup from plain data (for sorting)
+            let moistureLookup = Dictionary(uniqueKeysWithValues: fetchedReadings.map { ($0.eui, $0.moisture) })
+            
             // Sort sensors by moisture ascending (driest first)
             let sortedConfigs = updatedConfigs.sorted { a, b in
-                let moistureA = newReadings[a.eui]?.moisture ?? Double.infinity
-                let moistureB = newReadings[b.eui]?.moisture ?? Double.infinity
+                let moistureA = moistureLookup[a.eui] ?? Double.infinity
+                let moistureB = moistureLookup[b.eui] ?? Double.infinity
                 return moistureA < moistureB
             }
+            
+            // Create SwiftData models on main context
+            var newReadings: [String: SensorReading] = [:]
+            for data in fetchedReadings {
+                let reading = SensorReading(
+                    eui: data.eui,
+                    moisture: data.moisture,
+                    tempC: data.tempC,
+                    recordedAt: Date()
+                )
+                modelContext.insert(reading)
+                newReadings[data.eui] = reading
+            }
+            _ = try? modelContext.save()
 
-            await MainActor.run {
-                self.sensors = sortedConfigs
-                self.readings = newReadings
-                self.isLoading = false
-            }
+            self.sensors = sortedConfigs
+            self.readings = newReadings
+            self.isLoading = false
         } catch {
-            await MainActor.run {
-                self.errorMessage = error.localizedDescription
-                self.isLoading = false
-            }
+            self.errorMessage = error.localizedDescription
+            self.isLoading = false
         }
     }
 

@@ -51,6 +51,8 @@
 		A10000000000000000000277 /* DiagnosticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000276 /* DiagnosticsView.swift */; };
 		A10000000000000000000279 /* AboutView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000278 /* AboutView.swift */; };
 		A1000000000000000000027B /* ResetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000027A /* ResetView.swift */; };
+		A10000000000000000000282 /* SensorDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000285 /* SensorDetailView.swift */; };
+		A10000000000000000000284 /* ZoneDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000283 /* ZoneDetailView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -101,6 +103,8 @@
 		A10000000000000000000276 /* DiagnosticsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticsView.swift; sourceTree = "<group>"; };
 		A10000000000000000000278 /* AboutView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutView.swift; sourceTree = "<group>"; };
 		A1000000000000000000027A /* ResetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResetView.swift; sourceTree = "<group>"; };
+		A10000000000000000000285 /* SensorDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SensorDetailView.swift; sourceTree = "<group>"; };
+		A10000000000000000000283 /* ZoneDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZoneDetailView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -204,6 +208,7 @@
 			children = (
 				A10000000000000000000022C /* SensorsView.swift */,
 				A10000000000000000000022E /* SensorRowView.swift */,
+				A10000000000000000000285 /* SensorDetailView.swift */,
 			);
 			path = Sensors;
 			sourceTree = "<group>";
@@ -213,6 +218,7 @@
 			children = (
 				A100000000000000000000230 /* ZonesView.swift */,
 				A100000000000000000000232 /* ZoneRowView.swift */,
+				A10000000000000000000283 /* ZoneDetailView.swift */,
 			);
 			path = Zones;
 			sourceTree = "<group>";
@@ -415,6 +421,8 @@
 				A10000000000000000000277 /* DiagnosticsView.swift in Sources */,
 				A10000000000000000000279 /* AboutView.swift in Sources */,
 				A1000000000000000000027B /* ResetView.swift in Sources */,
+				A10000000000000000000282 /* SensorDetailView.swift in Sources */,
+				A10000000000000000000284 /* ZoneDetailView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

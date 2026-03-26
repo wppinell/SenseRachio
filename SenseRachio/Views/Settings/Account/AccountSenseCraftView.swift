@@ -187,8 +187,8 @@ struct AccountSenseCraftView: View {
         testResult = nil
         defer { isTesting = false }
 
-        try? KeychainService.shared.save(apiKey, forKey: KeychainKey.senseCraftAPIKey)
-        try? KeychainService.shared.save(apiSecret, forKey: KeychainKey.senseCraftAPISecret)
+        _ = try? KeychainService.shared.save(apiKey, forKey: KeychainKey.senseCraftAPIKey)
+        _ = try? KeychainService.shared.save(apiSecret, forKey: KeychainKey.senseCraftAPISecret)
 
         do {
             let devices = try await SenseCraftAPI.shared.listDevices()
@@ -202,8 +202,8 @@ struct AccountSenseCraftView: View {
     }
 
     private func signOut() {
-        try? KeychainService.shared.delete(forKey: KeychainKey.senseCraftAPIKey)
-        try? KeychainService.shared.delete(forKey: KeychainKey.senseCraftAPISecret)
+        _ = try? KeychainService.shared.delete(forKey: KeychainKey.senseCraftAPIKey)
+        _ = try? KeychainService.shared.delete(forKey: KeychainKey.senseCraftAPISecret)
         appState.refreshCredentialStatus()
         apiKey = ""
         apiSecret = ""

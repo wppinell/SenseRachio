@@ -18,7 +18,7 @@ struct ZoneRowView: View {
             ZStack {
                 RoundedRectangle(cornerRadius: DS.Radius.badge)
                     .fill(isActive ? DS.Color.online : DS.Color.accent.opacity(0.12))
-                Text("\(zone.zoneNumber)")
+                Text("\(zone.zoneNumber ?? 0)")
                     .font(.system(size: 13, weight: .bold, design: .rounded))
                     .foregroundStyle(isActive ? .white : DS.Color.accent)
             }

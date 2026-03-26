@@ -28,61 +28,70 @@ final class DashboardViewModel {
 
     // MARK: - Load
 
+    @MainActor
     func load(modelContext: ModelContext) async {
-        await MainActor.run { isLoading = true; errorMessage = nil }
+        isLoading = true
+        errorMessage = nil
 
         do {
-            async let sensorsTask: [SenseCraftDevice] = SenseCraftAPI.shared.listDevices()
-            async let zonesTask: [RachioDevice] = RachioAPI.shared.getDevices()
-
-            var readings: [SensorReading] = []
-
-            // Attempt to fetch sensor readings (may fail if no creds)
+            // Fetch sensors if credentials exist
             if KeychainService.shared.load(forKey: KeychainKey.senseCraftAPIKey) != nil {
-                let devices = try await sensorsTask
-                readings = await fetchReadings(for: devices)
+                let devices = try await SenseCraftAPI.shared.listDevices()
+                let readingData = await fetchReadingData(for: devices)
+                // Create SwiftData models on main actor
+                self.sensorReadings = readingData.map { data in
+                    SensorReading(
+                        eui: data.eui,
+                        moisture: data.moisture,
+                        tempC: data.tempC,
+                        recordedAt: Date()
+                    )
+                }
+            } else {
+                self.sensorReadings = []
             }
 
-            var fetchedZones: [RachioDevice] = []
+            // Fetch zones if credentials exist
             if KeychainService.shared.load(forKey: KeychainKey.rachioAPIKey) != nil {
-                fetchedZones = (try? await zonesTask) ?? []
+                self.zones = (try? await RachioAPI.shared.getDevices()) ?? []
+            } else {
+                self.zones = []
             }
 
-            await MainActor.run {
-                self.sensorReadings = readings
-                self.zones = fetchedZones
-                self.isLoading = false
-            }
+            isLoading = false
         } catch {
-            await MainActor.run {
-                self.errorMessage = error.localizedDescription
-                self.isLoading = false
-            }
+            self.errorMessage = error.localizedDescription
+            isLoading = false
         }
     }
 
-    private func fetchReadings(for devices: [SenseCraftDevice]) async -> [SensorReading] {
-        var results: [SensorReading] = []
-        await withTaskGroup(of: SensorReading?.self) { group in
+    private struct ReadingData: Sendable {
+        let eui: String
+        let moisture: Double
+        let tempC: Double
+    }
+    
+    private func fetchReadingData(for devices: [SenseCraftDevice]) async -> [ReadingData] {
+        var fetchedData: [ReadingData] = []
+        await withTaskGroup(of: ReadingData?.self) { group in
             for device in devices {
                 group.addTask {
                     do {
                         let r = try await SenseCraftAPI.shared.fetchReading(eui: device.deviceEui)
-                        return SensorReading(
+                        return ReadingData(
                             eui: device.deviceEui,
                             moisture: r.moisture ?? 0,
-                            tempC: r.tempC ?? 0,
-                            recordedAt: Date()
+                            tempC: r.tempC ?? 0
                         )
                     } catch {
                         return nil
                     }
                 }
             }
-            for await result in group {
-                if let r = result { results.append(r) }
+            for await data in group {
+                if let d = data { fetchedData.append(d) }
             }
         }
-        return results
+        return fetchedData
     }
 }

@@ -101,7 +101,7 @@ struct SensorRowView: View {
                         .font(DS.Font.footnote)
                         .foregroundStyle(DS.Color.textSecondary)
 
-                    if sensor.autoWaterEnabled, let linkedZone = sensor.linkedZoneId {
+                    if sensor.autoWaterEnabled, sensor.linkedZoneId != nil {
                         Spacer()
                         Label("Auto", systemImage: "drop.fill")
                             .font(DS.Font.footnote)

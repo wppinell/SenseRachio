@@ -158,7 +158,7 @@ final class RachioAPI {
         let deviceIds: [String]
         if let ids = try? await fetchDeviceIds(personId: personId), !ids.isEmpty {
             // Cache for future resilience
-            try? KeychainService.shared.save(ids.joined(separator: ","), forKey: KeychainKey.rachioDeviceIds)
+            _ = try? KeychainService.shared.save(ids.joined(separator: ","), forKey: KeychainKey.rachioDeviceIds)
             deviceIds = ids
         } else if let cached = KeychainService.shared.load(forKey: KeychainKey.rachioDeviceIds),
                   !cached.isEmpty {

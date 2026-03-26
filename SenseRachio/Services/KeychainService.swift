@@ -110,8 +110,8 @@ final class KeychainService {
     // MARK: - Convenience
 
     func deleteAll() {
-        try? delete(forKey: KeychainKey.senseCraftAPIKey)
-        try? delete(forKey: KeychainKey.senseCraftAPISecret)
-        try? delete(forKey: KeychainKey.rachioAPIKey)
+        _ = try? delete(forKey: KeychainKey.senseCraftAPIKey)
+        _ = try? delete(forKey: KeychainKey.senseCraftAPISecret)
+        _ = try? delete(forKey: KeychainKey.rachioAPIKey)
     }
 }
