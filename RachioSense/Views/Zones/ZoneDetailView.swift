@@ -3,6 +3,7 @@ import SwiftData
 
 struct ZoneDetailView: View {
     let zone: RachioZone
+    let device: RachioDevice?
     let isActive: Bool
     let onStart: (Int) -> Void
     let onStop: () -> Void
@@ -285,15 +286,66 @@ struct ZoneDetailView: View {
     // MARK: - Schedule Card
 
     private var scheduleCard: some View {
-        HStack(spacing: DS.Spacing.sm) {
-            Image(systemName: "calendar")
-                .foregroundStyle(DS.Color.textTertiary)
-            Text("Schedule information is managed in the Rachio app")
-                .font(DS.Font.caption)
-                .foregroundStyle(DS.Color.textSecondary)
+        let zoneSchedules = device?.schedules(forZoneId: zone.id) ?? []
+        
+        return Group {
+            if zoneSchedules.isEmpty {
+                HStack(spacing: DS.Spacing.sm) {
+                    Image(systemName: "calendar")
+                        .foregroundStyle(DS.Color.textTertiary)
+                    Text("This zone is not in any active schedule")
+                        .font(DS.Font.caption)
+                        .foregroundStyle(DS.Color.textSecondary)
+                }
+                .padding(DS.Spacing.lg)
+                .dsCard()
+            } else {
+                VStack(spacing: 0) {
+                    ForEach(zoneSchedules, id: \.rule.id) { entry in
+                        HStack(spacing: DS.Spacing.md) {
+                            Image(systemName: "calendar.badge.clock")
+                                .font(.system(size: 13))
+                                .foregroundStyle(DS.Color.accent)
+                                .frame(width: 28, height: 28)
+                                .background(DS.Color.accentMuted)
+                                .clipShape(RoundedRectangle(cornerRadius: 6))
+                            
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(entry.rule.name)
+                                    .font(DS.Font.cardTitle)
+                                if let summary = entry.rule.summary, !summary.isEmpty {
+                                    Text(summary)
+                                        .font(DS.Font.caption)
+                                        .foregroundStyle(DS.Color.textSecondary)
+                                        .lineLimit(2)
+                                }
+                                Text("Starts \(entry.rule.startTimeFormatted)")
+                                    .font(DS.Font.caption)
+                                    .foregroundStyle(DS.Color.textTertiary)
+                            }
+                            
+                            Spacer()
+                            
+                            VStack(alignment: .trailing, spacing: 2) {
+                                Text(formatDuration(entry.duration))
+                                    .font(DS.Font.cardTitle)
+                                    .foregroundStyle(DS.Color.accent)
+                                Text("run time")
+                                    .font(DS.Font.footnote)
+                                    .foregroundStyle(DS.Color.textTertiary)
+                            }
+                        }
+                        .padding(.horizontal, DS.Spacing.lg)
+                        .padding(.vertical, DS.Spacing.md)
+                        
+                        if entry.rule.id != zoneSchedules.last?.rule.id {
+                            Divider().padding(.leading, DS.Spacing.lg)
+                        }
+                    }
+                }
+                .dsCard()
+            }
         }
-        .padding(DS.Spacing.lg)
-        .dsCard()
     }
 
     // MARK: - Helpers

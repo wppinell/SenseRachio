@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ZoneRowView: View {
     let zone: RachioZone
+    let device: RachioDevice?
     let isActive: Bool
     let onStart: (Int) -> Void
     let onStop: () -> Void
@@ -37,6 +38,11 @@ struct ZoneRowView: View {
                     Text(subtitle)
                         .font(DS.Font.caption)
                         .foregroundStyle(DS.Color.textSecondary)
+                }
+                if let schedule = weeklyScheduleSummary {
+                    Text(schedule)
+                        .font(DS.Font.caption)
+                        .foregroundStyle(DS.Color.textTertiary)
                 }
             }
 
@@ -78,6 +84,16 @@ struct ZoneRowView: View {
             }
             .presentationDetents([.height(340)])
         }
+    }
+
+    private var weeklyScheduleSummary: String? {
+        guard let device else { return nil }
+        let schedules = device.schedules(forZoneId: zone.id)
+        guard !schedules.isEmpty else { return nil }
+        let totalSeconds = schedules.reduce(0) { $0 + $1.duration }
+        let totalMinutes = totalSeconds / 60
+        let scheduleNames = schedules.map { $0.rule.name }.joined(separator: ", ")
+        return "📅 \(totalMinutes) min/week · \(scheduleNames)"
     }
 
     private var lastWateredSubtitle: String? {
@@ -171,12 +187,12 @@ struct DurationPickerSheet: View {
             zone: RachioZone(id: "1", name: "Front Lawn", enabled: true, zoneNumber: 1,
                              lastWateredDate: Int(Date().addingTimeInterval(-172800).timeIntervalSince1970 * 1000),
                              lastWateredDuration: 600, imageUrl: nil),
-            isActive: false, onStart: { _ in }, onStop: {}
+            device: nil, isActive: false, onStart: { _ in }, onStop: {}
         )
         ZoneRowView(
             zone: RachioZone(id: "2", name: "Tomato Garden", enabled: true, zoneNumber: 4,
                              lastWateredDate: nil, lastWateredDuration: nil, imageUrl: nil),
-            isActive: true, onStart: { _ in }, onStop: {}
+            device: nil, isActive: true, onStart: { _ in }, onStop: {}
         )
     }
     .padding()

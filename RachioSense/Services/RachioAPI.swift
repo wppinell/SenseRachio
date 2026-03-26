@@ -18,6 +18,47 @@ struct RachioDevice: Codable, Identifiable {
     let status: String?
     let on: Bool?
     let zones: [RachioZone]
+    let scheduleRules: [RachioScheduleRule]?
+}
+
+struct RachioScheduleRule: Codable, Identifiable {
+    let id: String
+    let name: String
+    let enabled: Bool
+    let startHour: Int?
+    let startMinute: Int?
+    let zones: [RachioScheduleZone]
+    let summary: String?
+    
+    var startTimeFormatted: String {
+        let h = startHour ?? 0
+        let m = startMinute ?? 0
+        let ampm = h < 12 ? "AM" : "PM"
+        let h12 = h == 0 ? 12 : h > 12 ? h - 12 : h
+        return String(format: "%d:%02d %@", h12, m, ampm)
+    }
+}
+
+struct RachioScheduleZone: Codable {
+    let id: String
+    let duration: Int
+    
+    enum CodingKeys: String, CodingKey {
+        case id = "zoneId"
+        case duration
+    }
+}
+
+// Helper: look up schedule rules for a given zone ID
+extension RachioDevice {
+    func schedules(forZoneId zoneId: String) -> [(rule: RachioScheduleRule, duration: Int)] {
+        guard let rules = scheduleRules else { return [] }
+        return rules.compactMap { rule in
+            guard rule.enabled,
+                  let sz = rule.zones.first(where: { $0.id == zoneId }) else { return nil }
+            return (rule: rule, duration: sz.duration)
+        }
+    }
 }
 
 // MARK: - Rachio API Errors
@@ -147,6 +188,10 @@ final class RachioAPI {
             throw RachioAPIError.decodingError(error)
         }
     }
+    
+    // MARK: - Get Schedule Rules for Device
+
+
 
     // MARK: - Get Devices
 
@@ -171,7 +216,7 @@ final class RachioAPI {
         var devices: [RachioDevice] = []
         for id in deviceIds {
             let device = try await fetchDevice(id: id)
-            print("[RachioAPI] fetched device: \(device.name)")
+            print("[RachioAPI] fetched device: \(device.name), \(device.scheduleRules?.count ?? 0) schedules")
             devices.append(device)
         }
         return devices

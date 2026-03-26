@@ -127,6 +127,7 @@ struct ZonesView: View {
                     NavigationLink {
                         ZoneDetailView(
                             zone: zone,
+                            device: device,
                             isActive: viewModel.activeZoneId == zone.id,
                             onStart: { duration in
                                 Task { await viewModel.startZone(id: zone.id, duration: duration, modelContext: modelContext) }
@@ -138,6 +139,7 @@ struct ZonesView: View {
                     } label: {
                         ZoneRowView(
                             zone: zone,
+                            device: device,
                             isActive: viewModel.activeZoneId == zone.id,
                             onStart: { duration in
                                 Task { await viewModel.startZone(id: zone.id, duration: duration, modelContext: modelContext) }
