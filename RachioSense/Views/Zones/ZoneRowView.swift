@@ -90,10 +90,18 @@ struct ZoneRowView: View {
         guard let device else { return nil }
         let schedules = device.schedules(forZoneId: zone.id)
         guard !schedules.isEmpty else { return nil }
-        let totalSeconds = schedules.reduce(0) { $0 + $1.duration }
-        let totalMinutes = totalSeconds / 60
+        // Each schedule runs duration × runsPerWeek seconds per week
+        let totalMinutes = Int(schedules.reduce(0.0) { $0 + (Double($1.duration) / 60.0 * $1.rule.runsPerWeekDouble) }.rounded())
         let scheduleNames = schedules.map { $0.rule.name }.joined(separator: ", ")
-        return "📅 \(totalMinutes) min/week · \(scheduleNames)"
+        let durationStr: String
+        if totalMinutes >= 90 {
+            let h = totalMinutes / 60
+            let m = totalMinutes % 60
+            durationStr = m > 0 ? "\(h)h \(m)m/week" : "\(h)h/week"
+        } else {
+            durationStr = "\(totalMinutes) min/week"
+        }
+        return "📅 \(durationStr) · \(scheduleNames)"
     }
 
     private var lastWateredSubtitle: String? {

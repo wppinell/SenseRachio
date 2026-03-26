@@ -29,6 +29,9 @@ struct RachioScheduleRule: Codable, Identifiable {
     let startMinute: Int?
     let zones: [RachioScheduleZone]
     let summary: String?
+    let daysOfWeek: [String]?       // Fixed schedules: ["MONDAY", "WEDNESDAY", ...]
+    let scheduleJobTypes: [String]? // e.g. ["DAY_INTERVAL", "FIXED_DAYS", "FLEX"]
+    let cycleAndSoakStatus: String?
     
     var startTimeFormatted: String {
         let h = startHour ?? 0
@@ -36,6 +39,25 @@ struct RachioScheduleRule: Codable, Identifiable {
         let ampm = h < 12 ? "AM" : "PM"
         let h12 = h == 0 ? 12 : h > 12 ? h - 12 : h
         return String(format: "%d:%02d %@", h12, m, ampm)
+    }
+    
+    /// Number of times this schedule runs per week (as a Double for fractional intervals)
+    var runsPerWeekDouble: Double {
+        guard let types = scheduleJobTypes, !types.isEmpty else { return 1 }
+        
+        // Count DAY_OF_WEEK_N entries (specific days: 0=Sun, 1=Mon, ... 6=Sat)
+        let dayOfWeekCount = types.filter { $0.hasPrefix("DAY_OF_WEEK_") }.count
+        if dayOfWeekCount > 0 { return Double(dayOfWeekCount) }
+        
+        // INTERVAL_N = runs every N days → 7/N runs per week
+        for type_ in types {
+            if type_.hasPrefix("INTERVAL_"),
+               let n = Int(type_.dropFirst("INTERVAL_".count)), n > 0 {
+                return 7.0 / Double(n)
+            }
+        }
+        
+        return 1
     }
 }
 
@@ -183,7 +205,11 @@ final class RachioAPI {
         }
 
         do {
-            return try JSONDecoder().decode(RachioDevice.self, from: data)
+            let device = try JSONDecoder().decode(RachioDevice.self, from: data)
+            for rule in device.scheduleRules ?? [] {
+                print("[RachioAPI] schedule '\(rule.name)' types=\(rule.scheduleJobTypes ?? []) runsPerWeek=\(rule.runsPerWeekDouble)")
+            }
+            return device
         } catch {
             throw RachioAPIError.decodingError(error)
         }
