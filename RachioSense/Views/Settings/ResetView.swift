@@ -193,7 +193,6 @@ struct ResetView: View {
             for c in configs {
                 c.linkedZoneId = nil
                 c.autoWaterEnabled = false
-                c.moistureThreshold = nil
             }
             _ = try? modelContext.save()
             completedAction = "All sensor-zone links removed."

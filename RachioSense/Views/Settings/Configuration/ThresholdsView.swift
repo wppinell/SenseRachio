@@ -11,7 +11,7 @@ struct ThresholdsView: View {
         List {
             Section {
                 DSInlineBanner(
-                    message: "These are global defaults. Individual sensor thresholds can be set in Sensor-Zone Links.",
+                    message: "These global thresholds apply to all sensors.",
                     style: .info
                 )
                 .listRowBackground(Color.clear)
@@ -23,17 +23,19 @@ struct ThresholdsView: View {
                     label: "High Level",
                     description: "Soil moisture is at a good high level",
                     value: $lowThreshold,
-                    range: 30...80
+                    range: 30...80,
+                    color: Color(hex: "0EA5E9")  // blue
                 )
             } header: { Text("High Level") }
-             footer: { Text("Alert when moisture drops to or below this level. Current: \(Int(lowThreshold))%") }
+             footer: { Text("Moisture above this level is considered high. Current: \(Int(lowThreshold))%") }
 
             Section {
                 thresholdSlider(
                     label: "Dry Level",
-                    description: "Soil moisture is critically dry",
+                    description: "Soil moisture is getting low",
                     value: $dryThreshold,
-                    range: 10...50
+                    range: 10...50,
+                    color: DS.Color.warning  // yellow/orange
                 )
             } header: { Text("Dry Level") }
              footer: { Text("Alert when moisture drops to or below this level. Current: \(Int(dryThreshold))%") }
@@ -43,7 +45,8 @@ struct ThresholdsView: View {
                     label: "Auto-water Trigger",
                     description: "Automatically start linked zone",
                     value: $autoWaterThreshold,
-                    range: 5...40
+                    range: 5...40,
+                    color: DS.Color.error  // red
                 )
             } header: { Text("Auto-water Trigger") }
              footer: { Text("If auto-water is enabled for a sensor, irrigation will start when moisture drops to \(Int(autoWaterThreshold))%.") }
@@ -93,7 +96,7 @@ struct ThresholdsView: View {
     }
 
     @ViewBuilder
-    private func thresholdSlider(label: String, description: String, value: Binding<Double>, range: ClosedRange<Double>) -> some View {
+    private func thresholdSlider(label: String, description: String, value: Binding<Double>, range: ClosedRange<Double>, color: Color) -> some View {
         VStack(alignment: .leading, spacing: DS.Spacing.sm) {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
@@ -103,12 +106,12 @@ struct ThresholdsView: View {
                 Spacer()
                 Text("\(Int(value.wrappedValue))%")
                     .font(DS.Font.cardTitle)
-                    .foregroundStyle(DS.Color.moisture(value.wrappedValue))
+                    .foregroundStyle(color)
                     .monospacedDigit()
                     .frame(width: 42, alignment: .trailing)
             }
             Slider(value: value, in: range, step: 1)
-                .tint(DS.Color.moisture(value.wrappedValue))
+                .tint(color)
         }
         .padding(.vertical, DS.Spacing.xs)
     }

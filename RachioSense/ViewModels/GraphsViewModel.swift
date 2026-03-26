@@ -78,27 +78,28 @@ final class GraphsViewModel {
 
         zoneConfigs = (try? modelContext.fetch(FetchDescriptor<ZoneConfig>())) ?? []
 
-        // Wait for prefetcher to finish before reading — ensures graphs show full history
+        // Show whatever is already in SwiftData immediately
+        reloadReadings(modelContext: modelContext)
+        isLoading = false
+
+        // Then fetch fresh data in background — update graphs when done
         isFetchingData = true
         await GraphDataPrefetcher.shared.fetchIfNeeded(modelContext: modelContext)
-        isFetchingData = false
-
         reloadReadings(modelContext: modelContext)
         lastFetchedAt = Date()
-        isLoading = false
+        isFetchingData = false
     }
     
-    /// Force refresh - clears local data, fetches fresh, then reloads
+    /// Force refresh - fetches last 24h of fresh data (lightweight)
     @MainActor
     func forceRefresh(modelContext: ModelContext) async {
         isLoading = true
-        // Invalidate displayed readings immediately so graphs show waiting state
-        readingsByEUI = [:]
         isFetchingData = true
-        await GraphDataPrefetcher.shared.forceFull(modelContext: modelContext)
-        isFetchingData = false
+        // Just fetch last 24h — much lighter than full 7-day refresh
+        await GraphDataPrefetcher.shared.fetchRecent(modelContext: modelContext)
         reloadReadings(modelContext: modelContext)
         lastFetchedAt = Date()
+        isFetchingData = false
         isLoading = false
     }
     
@@ -109,6 +110,12 @@ final class GraphsViewModel {
         var grouped: [String: [SensorReading]] = [:]
         for r in allReadings { grouped[r.eui, default: []].append(r) }
         readingsByEUI = grouped
+        let summary = grouped.map { "\($0.key.suffix(4)):\($0.value.count)" }.joined(separator: ", ")
+        print("[GraphsVM] reloadReadings: \(allReadings.count) total readings across \(grouped.keys.count) EUIs — [\(summary)]")
+        
+        // Also log what sensors expect to show
+        let visibleEUIs = sensors.filter { !$0.isHiddenFromGraphs }.map { $0.eui }
+        print("[GraphsVM] Visible sensor EUIs: \(visibleEUIs.map { String($0.suffix(4)) }.joined(separator: ", "))")
     }
     
 
@@ -164,11 +171,9 @@ final class GraphsViewModel {
         switch period {
         case "1d": return Date().addingTimeInterval(-1 * 86400)
         case "2d": return Date().addingTimeInterval(-2 * 86400)
-        case "3d": return Date().addingTimeInterval(-3 * 86400)
         case "4d": return Date().addingTimeInterval(-4 * 86400)
         case "5d": return Date().addingTimeInterval(-5 * 86400)
         case "1w": return Date().addingTimeInterval(-7 * 86400)
-        case "2w": return Date().addingTimeInterval(-14 * 86400)
         default:   return Date().addingTimeInterval(-86400)
         }
     }

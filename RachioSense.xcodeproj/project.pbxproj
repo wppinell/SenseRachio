@@ -27,7 +27,6 @@
 		A100000000000000000000231 /* ZonesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000230 /* ZonesView.swift */; };
 		A100000000000000000000233 /* ZoneRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000232 /* ZoneRowView.swift */; };
 		A100000000000000000000235 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000234 /* SettingsView.swift */; };
-		A100000000000000000000237 /* SensorZoneLinkView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000236 /* SensorZoneLinkView.swift */; };
 		A100000000000000000000239 /* BackgroundRefreshManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000238 /* BackgroundRefreshManager.swift */; };
 		A10000000000000000000023B /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000023A /* Assets.xcassets */; };
 		A10000000000000000000251 /* DesignSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000250 /* DesignSystem.swift */; };
@@ -81,7 +80,6 @@
 		A100000000000000000000230 /* ZonesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZonesView.swift; sourceTree = "<group>"; };
 		A100000000000000000000232 /* ZoneRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZoneRowView.swift; sourceTree = "<group>"; };
 		A100000000000000000000234 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
-		A100000000000000000000236 /* SensorZoneLinkView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SensorZoneLinkView.swift; sourceTree = "<group>"; };
 		A100000000000000000000238 /* BackgroundRefreshManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundRefreshManager.swift; sourceTree = "<group>"; };
 		A10000000000000000000023A /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A10000000000000000000023C /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
@@ -240,7 +238,6 @@
 			isa = PBXGroup;
 			children = (
 				A100000000000000000000234 /* SettingsView.swift */,
-				A100000000000000000000236 /* SensorZoneLinkView.swift */,
 				A10000000000000000000252 /* OnboardingView.swift */,
 				A1000000000000000000027A /* ResetView.swift */,
 				A1000000000000000000027C /* Account */,
@@ -421,7 +418,6 @@
 				A100000000000000000000231 /* ZonesView.swift in Sources */,
 				A100000000000000000000233 /* ZoneRowView.swift in Sources */,
 				A100000000000000000000235 /* SettingsView.swift in Sources */,
-				A100000000000000000000237 /* SensorZoneLinkView.swift in Sources */,
 				A100000000000000000000239 /* BackgroundRefreshManager.swift in Sources */,
 				A10000000000000000000251 /* DesignSystem.swift in Sources */,
 				A10000000000000000000253 /* OnboardingView.swift in Sources */,

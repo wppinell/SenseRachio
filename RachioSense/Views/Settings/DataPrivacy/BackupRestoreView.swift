@@ -138,7 +138,6 @@ struct BackupRestoreView: View {
                 "eui": s.eui,
                 "alias": s.alias ?? "",
                 "linkedZoneId": s.linkedZoneId ?? "",
-                "moistureThreshold": s.moistureThreshold ?? 30.0,
                 "autoWaterEnabled": s.autoWaterEnabled,
                 "isHiddenFromGraphs": s.isHiddenFromGraphs
             ] as [String: Any]
@@ -214,7 +213,7 @@ struct BackupRestoreView: View {
                     if let existing = sensors.first(where: { $0.eui == eui }) {
                         existing.alias = (backup["alias"] as? String).flatMap { $0.isEmpty ? nil : $0 }
                         existing.linkedZoneId = (backup["linkedZoneId"] as? String).flatMap { $0.isEmpty ? nil : $0 }
-                        existing.moistureThreshold = backup["moistureThreshold"] as? Double ?? 30.0
+                        // moistureThreshold removed — now using global thresholds
                         existing.autoWaterEnabled = backup["autoWaterEnabled"] as? Bool ?? false
                         existing.isHiddenFromGraphs = backup["isHiddenFromGraphs"] as? Bool ?? false
                         restoredSensors += 1

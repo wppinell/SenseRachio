@@ -286,7 +286,7 @@ struct DiagnosticsView: View {
 
         isTestingHistory = true
         historyTestStatus = .running
-        historyTestResult = "Fetching 168h (7 day) history for: \(sensor.displayName) (\(sensor.eui))…"
+        historyTestResult = "Fetching 168h (7 day) history for: \(sensor.displayName) (\(sensor.eui))…\n(fetches in 24h chunks — may take a few seconds)"
 
         let start = Date()
         do {
@@ -296,14 +296,8 @@ struct DiagnosticsView: View {
             if history.isEmpty {
                 historyTestStatus = .failure
                 historyTestResult = """
-                ⚠️ Endpoint responded but returned 0 readings.
+                ⚠️ 0 readings returned in \(elapsed)ms
                 Sensor: \(sensor.displayName) (\(sensor.eui))
-                Duration: \(elapsed)ms
-                
-                Possible causes:
-                - No data in last 24h for this sensor
-                - Measurement IDs don't match (4103/4102)
-                - API time range params may need adjustment
                 """
             } else {
                 historyTestStatus = .success
@@ -313,15 +307,19 @@ struct DiagnosticsView: View {
                 let formatter = DateFormatter()
                 formatter.dateStyle = .short
                 formatter.timeStyle = .short
+
+                // First 100 readings as log lines
+                let sample = sorted.prefix(100).map { r in
+                    "\(formatter.string(from: r.timestamp)): \(r.moisture.map { String(format: "%.1f%%", $0) } ?? "nil") / \(r.tempC.map { String(format: "%.1fC", $0) } ?? "nil")"
+                }.joined(separator: "\n")
+
                 historyTestResult = """
-                ✅ Success — \(history.count) readings in \(elapsed)ms
+                ✅ \(history.count) readings in \(elapsed)ms
                 Sensor: \(sensor.displayName) (\(sensor.eui))
                 Range: \(formatter.string(from: first.timestamp)) → \(formatter.string(from: last.timestamp))
-                
-                Sample (last 3):
-                \(sorted.suffix(3).map { r in
-                    "  \(formatter.string(from: r.timestamp)): moisture=\(r.moisture.map { String(format: "%.1f%%", $0) } ?? "nil"), temp=\(r.tempC.map { String(format: "%.1f°C", $0) } ?? "nil")"
-                }.joined(separator: "\n"))
+
+                First 100 readings:
+                \(sample)
                 """
             }
         } catch {

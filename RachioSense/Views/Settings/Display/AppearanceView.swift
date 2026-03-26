@@ -8,7 +8,7 @@ struct AppearanceView: View {
     @AppStorage(AppStorageKey.iconStyle) private var iconStyle = "filled"
     @AppStorage(AppStorageKey.graphYMin) private var graphYMin = 15.0
     @AppStorage(AppStorageKey.graphYMax) private var graphYMax = 45.0
-    @AppStorage(AppStorageKey.trendChartPeriod) private var defaultChartPeriod = "3d"
+    @AppStorage(AppStorageKey.trendChartPeriod) private var defaultChartPeriod = "4d"
     @Environment(\.colorScheme) private var colorScheme
 
     private let accentColors: [(name: String, color: Color)] = [
@@ -95,11 +95,9 @@ struct AppearanceView: View {
                 Picker("Default Period", selection: $defaultChartPeriod) {
                     Text("1 day").tag("1d")
                     Text("2 days").tag("2d")
-                    Text("3 days").tag("3d")
                     Text("4 days").tag("4d")
                     Text("5 days").tag("5d")
                     Text("1 week").tag("1w")
-                    Text("2 weeks").tag("2w")
                 }
             } header: { Text("Graph Default Period") }
               footer: { Text("The time range shown when you first open the Graphs tab. Default: 3 days.") }

@@ -9,6 +9,8 @@ struct SensorDetailView: View {
     @Environment(\.modelContext) private var modelContext
     @AppStorage(AppStorageKey.temperatureUnit) private var tempUnit = "celsius"
     @AppStorage(AppStorageKey.trendChartPeriod) private var chartPeriod = "24h"
+    @AppStorage(AppStorageKey.dryThreshold) private var dryThreshold: Double = 25
+    @AppStorage(AppStorageKey.autoWaterThreshold) private var autoWaterThreshold: Double = 20
 
     @Query private var allReadings: [SensorReading]
     @Query private var zones: [ZoneConfig]
@@ -284,15 +286,13 @@ struct SensorDetailView: View {
                 }
             }
             Spacer()
-            if let threshold = sensor.moistureThreshold {
-                VStack(alignment: .trailing, spacing: 2) {
-                    Text("\(Int(threshold))%")
-                        .font(DS.Font.cardTitle)
-                        .foregroundStyle(DS.Color.moisture(threshold))
-                    Text("threshold")
-                        .font(DS.Font.footnote)
-                        .foregroundStyle(DS.Color.textTertiary)
-                }
+            VStack(alignment: .trailing, spacing: 2) {
+                Text("\(Int(sensor.autoWaterEnabled ? autoWaterThreshold : dryThreshold))%")
+                    .font(DS.Font.cardTitle)
+                    .foregroundStyle(DS.Color.moisture(sensor.autoWaterEnabled ? autoWaterThreshold : dryThreshold))
+                Text(sensor.autoWaterEnabled ? "auto-water" : "dry alert")
+                    .font(DS.Font.footnote)
+                    .foregroundStyle(DS.Color.textTertiary)
             }
         }
         .padding(DS.Spacing.lg)

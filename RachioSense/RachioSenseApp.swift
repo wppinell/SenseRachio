@@ -32,18 +32,9 @@ struct RachioSenseApp: App {
         .modelContainer(modelContainer)
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .active {
-                Task { await prefetchGraphData() }
+                // Clear stale key from removed 2w feature
+                UserDefaults.standard.removeObject(forKey: "lastExtendedFetchTimestamp")
             }
         }
-    }
-    
-    /// Pre-fetch graph data on app launch (background thread)
-    @MainActor
-    private func prefetchGraphData() async {
-        guard appState.hasSenseCraftCredentials else { return }
-        
-        let context = modelContainer.mainContext
-        let prefetcher = GraphDataPrefetcher.shared
-        await prefetcher.fetchIfNeeded(modelContext: context)
     }
 }

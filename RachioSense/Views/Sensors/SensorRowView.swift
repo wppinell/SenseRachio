@@ -133,13 +133,14 @@ struct SensorRowView: View {
                 DSMoistureBar(value: moisture)
             }
 
-            // Threshold indicator
-            if let threshold = sensor.moistureThreshold, hasReading {
+            // Threshold indicator using global thresholds
+            if hasReading {
+                let threshold = sensor.autoWaterEnabled ? autoWaterThreshold : dryThreshold
                 HStack(spacing: DS.Spacing.xs) {
                     Image(systemName: moisture < threshold ? "exclamationmark.circle.fill" : "checkmark.circle.fill")
                         .font(.system(size: 11))
                         .foregroundStyle(moisture < threshold ? DS.Color.error : DS.Color.online)
-                    Text("Threshold: \(Int(threshold))%")
+                    Text("\(sensor.autoWaterEnabled ? "Auto-water" : "Dry alert"): \(Int(threshold))%")
                         .font(DS.Font.footnote)
                         .foregroundStyle(DS.Color.textSecondary)
 
@@ -170,7 +171,7 @@ private extension Date {
     ScrollView {
         VStack(spacing: DS.Spacing.sm) {
             SensorRowView(
-                sensor: SensorConfig(id: "1", name: "Garden Bed A", eui: "2CF7F1C044200006", moistureThreshold: 30, autoWaterEnabled: true),
+                sensor: SensorConfig(id: "1", name: "Garden Bed A", eui: "2CF7F1C044200006", autoWaterEnabled: true),
                 reading: SensorReading(eui: "2CF7F1C044200006", moisture: 22.5, tempC: 21.3)
             )
             SensorRowView(

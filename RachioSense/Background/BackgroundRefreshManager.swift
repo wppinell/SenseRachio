@@ -62,6 +62,10 @@ final class BackgroundRefreshManager {
         guard KeychainService.shared.load(forKey: KeychainKey.senseCraftAPIKey) != nil else {
             return
         }
+        
+        // Get global threshold from UserDefaults
+        let dryThreshold = UserDefaults.standard.double(forKey: AppStorageKey.dryThreshold)
+        let effectiveThreshold = dryThreshold > 0 ? dryThreshold : 25.0  // Default 25%
 
         do {
             // Build a model container for background use
@@ -80,7 +84,6 @@ final class BackgroundRefreshManager {
                 let moisture: Double
                 let tempC: Double
                 let configName: String
-                let threshold: Double?
                 let linkedZoneId: String?
             }
             
@@ -92,8 +95,7 @@ final class BackgroundRefreshManager {
                     }
                     
                     let eui = config.eui
-                    let name = config.name
-                    let threshold = config.moistureThreshold
+                    let name = config.displayName
                     let zoneId = config.linkedZoneId
                     
                     group.addTask {
@@ -104,7 +106,6 @@ final class BackgroundRefreshManager {
                                 moisture: reading.moisture ?? 0,
                                 tempC: reading.tempC ?? 0,
                                 configName: name,
-                                threshold: threshold,
                                 linkedZoneId: zoneId
                             )
                         } catch {
@@ -130,8 +131,8 @@ final class BackgroundRefreshManager {
                 )
                 context.insert(newReading)
                 
-                // Check threshold and send notification
-                if let threshold = data.threshold, data.moisture < threshold {
+                // Check against global threshold and send notification
+                if data.moisture < effectiveThreshold {
                     var zoneName: String? = nil
                     if let zoneId = data.linkedZoneId {
                         let zoneDescriptor = FetchDescriptor<ZoneConfig>(

@@ -14,7 +14,7 @@ struct SensorGraphCard: View {
     @AppStorage(AppStorageKey.dryThreshold) private var dryThreshold: Double = 25
     @AppStorage(AppStorageKey.lowThreshold) private var highThreshold: Double = 40
 
-    @State private var localPeriod: String = ""  // per-card — single tap changes only this
+    @State private var localPeriod: String = "4d" // per-card — single tap changes only this
     @State private var syncFlash: Bool = false    // brief visual feedback on double-tap
 
     // Shared color palette for multi-sensor lines
@@ -53,11 +53,9 @@ struct SensorGraphCard: View {
         switch localPeriod {
         case "1d": return 1
         case "2d": return 2
-        case "3d": return 3
         case "4d": return 4
         case "5d": return 5
         case "1w": return 7
-        case "2w": return 14
         default:   return 1
         }
     }
@@ -71,7 +69,7 @@ struct SensorGraphCard: View {
     private var xAxisCount: Int { periodDays }
 
     private var xAxisFormat: Date.FormatStyle {
-        .dateTime.month(.abbreviated).day()
+        .dateTime.month(.defaultDigits).day()
     }
 
     /// Evenly spaced Y axis ticks within the configured range
@@ -94,17 +92,14 @@ struct SensorGraphCard: View {
     }
 
     private var isWaitingForData: Bool {
-        !sensors.isEmpty && sensors.allSatisfy { readingsFor($0.eui, "2w").isEmpty }
+        // No data at all for the current period
+        !sensors.isEmpty && sensors.allSatisfy { readingsFor($0.eui, localPeriod).isEmpty }
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.md) {
             headerRow
-            if isFetching {
-                fetchingState
-            } else if isWaitingForData {
-                waitingState
-            } else if hasData {
+            if hasData {
                 chartView
                 legendView
             } else {
@@ -114,7 +109,7 @@ struct SensorGraphCard: View {
         .padding(DS.Spacing.lg)
         .dsCard()
         .onAppear {
-            if localPeriod.isEmpty { localPeriod = chartPeriod }
+            localPeriod = chartPeriod
         }
         .onChange(of: chartPeriod) { _, newVal in
             // External broadcast (double-tap on another card) → sync local
@@ -151,7 +146,7 @@ struct SensorGraphCard: View {
 
     private var periodPicker: some View {
         HStack(spacing: 2) {
-            ForEach(["1d", "2d", "3d", "4d", "5d", "1w", "2w"], id: \.self) { period in
+            ForEach(["1d", "2d", "4d", "5d", "1w"], id: \.self) { period in
                 Text(period)
                     .font(.system(size: 12, weight: localPeriod == period ? .semibold : .regular))
                     .foregroundStyle(localPeriod == period ? .white : DS.Color.textSecondary)
@@ -211,8 +206,8 @@ struct SensorGraphCard: View {
         .frame(height: 160)
         .chartXScale(domain: periodStart...Date())
         .chartXAxis {
-            AxisMarks(values: .stride(by: xAxisStride, count: xAxisCount)) { value in
-                AxisValueLabel(format: xAxisFormat)
+            AxisMarks(values: .stride(by: xAxisStride)) { value in
+                AxisValueLabel(format: xAxisFormat, centered: true)
                 AxisGridLine()
             }
         }
@@ -280,11 +275,12 @@ struct SensorGraphCard: View {
             Image(systemName: "chart.xyaxis.line")
                 .font(.system(size: 28, weight: .light))
                 .foregroundStyle(DS.Color.textTertiary)
-            Text("No data for selected period")
+            Text("No data for \(localPeriod)")
                 .font(DS.Font.caption)
                 .foregroundStyle(DS.Color.textSecondary)
                 .multilineTextAlignment(.center)
-            Text("Try a shorter range or pull to refresh.")
+            Text("card EUIs: \(sensors.map{$0.eui.suffix(4)}.joined(separator:","))")
+            Text("pts: \(allPoints.count) · readings: \(sensors.map{ s in String(readingsFor(s.eui, localPeriod).count) }.joined(separator:","))")
                 .font(DS.Font.footnote)
                 .foregroundStyle(DS.Color.textTertiary)
                 .multilineTextAlignment(.center)

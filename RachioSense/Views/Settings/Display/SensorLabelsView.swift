@@ -7,8 +7,7 @@ struct SensorLabelsView: View {
 
     // Preview data
     private let previewSensor = SensorConfig(
-        id: "preview", name: "Garden Bed A", eui: "2CF7F1C044200006",
-        moistureThreshold: 30
+        id: "preview", name: "Garden Bed A", eui: "2CF7F1C044200006"
     )
     private let previewReading = SensorReading(
         eui: "2CF7F1C044200006", moisture: 35.5, tempC: 21.3

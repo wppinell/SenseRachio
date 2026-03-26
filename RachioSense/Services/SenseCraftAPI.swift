@@ -210,6 +210,7 @@ final class SenseCraftAPI {
                 let chunkEndMs   = nowMs - (i * chunkHours * 3600 * 1000)
                 let chunkStartMs = chunkEndMs - (chunkHours * 3600 * 1000)
                 let chunk = try await fetchHistoryChunk(eui: eui, startMs: chunkStartMs, endMs: chunkEndMs)
+                print("[SenseCraft] \(eui.suffix(4)) chunk \(i+1)/\(chunks): \(chunk.count) readings")
                 allReadings.append(contentsOf: chunk)
             }
 

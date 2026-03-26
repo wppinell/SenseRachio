@@ -122,10 +122,11 @@ struct SensorLinkDetailView: View {
     let zones: [ZoneConfig]
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    
+    @AppStorage(AppStorageKey.autoWaterThreshold) private var autoWaterThreshold: Double = 20
 
     @State private var sensorAlias: String = ""
     @State private var selectedZoneId: String = ""
-    @State private var threshold: Double = 30
     @State private var autoWaterEnabled: Bool = false
     @State private var isHiddenFromGraphs: Bool = false
 
@@ -175,36 +176,19 @@ struct SensorLinkDetailView: View {
                 footer: { Text("This zone will be suggested when the sensor is dry.") }
 
             Section {
-                VStack(alignment: .leading, spacing: DS.Spacing.sm) {
-                    HStack {
-                        Text("Alert threshold")
-                            .font(DS.Font.cardBody)
-                            .foregroundStyle(DS.Color.textSecondary)
-                        Spacer()
-                        Text("\(Int(threshold))%")
-                            .font(DS.Font.cardTitle)
-                            .foregroundStyle(DS.Color.moisture(threshold))
-                    }
-                    Slider(value: $threshold, in: 0...100, step: 1)
-                        .tint(DS.Color.moisture(threshold))
-                    DSMoistureBar(value: threshold)
-                }
-            } header: { Text("Moisture Threshold") }
-             footer: { Text("You will be notified when soil moisture falls below this level.") }
-
-            Section {
                 Toggle("Auto-water when dry", isOn: $autoWaterEnabled)
                     .tint(DS.Color.accent)
                     .disabled(selectedZoneId.isEmpty)
                 if autoWaterEnabled && !selectedZoneId.isEmpty {
                     DSInlineBanner(
-                        message: "Zone \"\(linkedZone?.name ?? "")\" will start automatically when moisture drops below \(Int(threshold))%.",
+                        message: "Zone \"\(linkedZone?.name ?? "")\" will start automatically when moisture drops below \(Int(autoWaterThreshold))%.",
                         style: .info
                     )
                     .listRowBackground(Color.clear)
                     .listRowInsets(.init())
                 }
             } header: { Text("Automation") }
+              footer: { Text("Auto-water threshold is set globally in Settings → Thresholds.") }
 
             Section {
                 Toggle("Show in Graphs", isOn: Binding(
@@ -231,14 +215,12 @@ struct SensorLinkDetailView: View {
             if let sensor {
                 sensorAlias = sensor.alias ?? ""
                 selectedZoneId = sensor.linkedZoneId ?? ""
-                threshold = sensor.moistureThreshold ?? 30
                 autoWaterEnabled = sensor.autoWaterEnabled
                 isHiddenFromGraphs = sensor.isHiddenFromGraphs
             }
         }
         .onChange(of: sensorAlias) { saveChanges() }
         .onChange(of: selectedZoneId) { saveChanges() }
-        .onChange(of: threshold) { saveChanges() }
         .onChange(of: autoWaterEnabled) { saveChanges() }
         .onChange(of: isHiddenFromGraphs) { saveChanges() }
     }
@@ -248,7 +230,6 @@ struct SensorLinkDetailView: View {
         let trimmedAlias = sensorAlias.trimmingCharacters(in: .whitespaces)
         sensor.alias = trimmedAlias.isEmpty ? nil : trimmedAlias
         sensor.linkedZoneId = selectedZoneId.isEmpty ? nil : selectedZoneId
-        sensor.moistureThreshold = threshold
         sensor.autoWaterEnabled = autoWaterEnabled
         sensor.isHiddenFromGraphs = isHiddenFromGraphs
         _ = try? modelContext.save()

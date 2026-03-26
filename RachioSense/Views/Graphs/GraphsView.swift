@@ -3,7 +3,7 @@ import SwiftUI
 struct GraphsView: View {
     @EnvironmentObject private var appState: AppState
     @Environment(\.modelContext) private var modelContext
-    @AppStorage(AppStorageKey.trendChartPeriod) private var chartPeriod = "3d"
+    @AppStorage(AppStorageKey.trendChartPeriod) private var chartPeriod = "4d"
 
     @State private var viewModel = GraphsViewModel()
 
@@ -33,13 +33,8 @@ struct GraphsView: View {
             }
             .task { await viewModel.load(modelContext: modelContext) }
             .refreshable { await viewModel.forceRefresh(modelContext: modelContext) }
-            .onChange(of: chartPeriod) { _, newPeriod in
-                if newPeriod == "2w" {
-                    Task { await GraphDataPrefetcher.shared.fetchExtendedIfNeeded(modelContext: modelContext) }
-                } else if viewModel.isDataStale {
-                    Task { await viewModel.forceRefresh(modelContext: modelContext) }
-                }
-            }
+            // Removed: onChange of chartPeriod was triggering duplicate fetches
+            // Users can pull-to-refresh manually if needed after changing period
         }
     }
     
