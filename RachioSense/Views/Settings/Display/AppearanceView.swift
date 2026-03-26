@@ -6,6 +6,9 @@ struct AppearanceView: View {
     @AppStorage(AppStorageKey.animationsEnabled) private var animations = true
     @AppStorage(AppStorageKey.hapticsEnabled) private var haptics = true
     @AppStorage(AppStorageKey.iconStyle) private var iconStyle = "filled"
+    @AppStorage(AppStorageKey.graphYMin) private var graphYMin = 15.0
+    @AppStorage(AppStorageKey.graphYMax) private var graphYMax = 45.0
+    @AppStorage(AppStorageKey.trendChartPeriod) private var defaultChartPeriod = "3d"
     @Environment(\.colorScheme) private var colorScheme
 
     private let accentColors: [(name: String, color: Color)] = [
@@ -86,6 +89,55 @@ struct AppearanceView: View {
                 .pickerStyle(.inline)
                 .labelsHidden()
             } header: { Text("Icon Style") }
+
+            // Graph Default Period
+            Section {
+                Picker("Default Period", selection: $defaultChartPeriod) {
+                    Text("1 day").tag("1d")
+                    Text("2 days").tag("2d")
+                    Text("3 days").tag("3d")
+                    Text("4 days").tag("4d")
+                    Text("5 days").tag("5d")
+                    Text("1 week").tag("1w")
+                    Text("2 weeks").tag("2w")
+                }
+            } header: { Text("Graph Default Period") }
+              footer: { Text("The time range shown when you first open the Graphs tab. Default: 3 days.") }
+
+            // Graph Scale
+            Section {
+                VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+                    HStack {
+                        Text("Y-Axis Min")
+                            .foregroundStyle(DS.Color.textSecondary)
+                        Spacer()
+                        Text("\(Int(graphYMin))%")
+                            .foregroundStyle(DS.Color.textPrimary)
+                            .monospacedDigit()
+                    }
+                    Slider(value: $graphYMin, in: 0...50, step: 5)
+                        .tint(DS.Color.accent)
+                        .onChange(of: graphYMin) { _, newVal in
+                            if newVal >= graphYMax { graphYMax = newVal + 5 }
+                        }
+                }
+                VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+                    HStack {
+                        Text("Y-Axis Max")
+                            .foregroundStyle(DS.Color.textSecondary)
+                        Spacer()
+                        Text("\(Int(graphYMax))%")
+                            .foregroundStyle(DS.Color.textPrimary)
+                            .monospacedDigit()
+                    }
+                    Slider(value: $graphYMax, in: 20...100, step: 5)
+                        .tint(DS.Color.accent)
+                        .onChange(of: graphYMax) { _, newVal in
+                            if newVal <= graphYMin { graphYMin = newVal - 5 }
+                        }
+                }
+            } header: { Text("Graph Scale") }
+              footer: { Text("Sets the moisture % range displayed on all graphs. Default: 15%–45%.") }
         }
         .listStyle(.insetGrouped)
         .navigationTitle("Appearance")

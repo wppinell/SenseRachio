@@ -124,6 +124,12 @@ struct SettingsView: View {
                 }
 
                 NavigationLink {
+                    BackupRestoreView()
+                } label: {
+                    DSSettingRow(icon: "externaldrive.fill.badge.checkmark", iconColor: Color(hex: "7C3AED"), title: "Backup & Restore")
+                }
+
+                NavigationLink {
                     ExportDataView()
                 } label: {
                     DSSettingRow(icon: "square.and.arrow.up.fill", iconColor: Color(hex: "059669"), title: "Export Data")

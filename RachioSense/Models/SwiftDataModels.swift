@@ -4,19 +4,29 @@ import SwiftData
 @Model
 class SensorConfig {
     var id: String
-    var name: String
+    var name: String          // Original name from API
+    var alias: String?        // User-defined alias
     var eui: String
     var linkedZoneId: String?
     var moistureThreshold: Double?
     var autoWaterEnabled: Bool
     var groupId: String?
     var isHiddenFromGraphs: Bool
+    
+    /// Display name: alias if set, otherwise original name
+    var displayName: String {
+        if let alias = alias, !alias.isEmpty {
+            return alias
+        }
+        return name
+    }
 
-    init(id: String, name: String, eui: String, linkedZoneId: String? = nil,
+    init(id: String, name: String, eui: String, alias: String? = nil, linkedZoneId: String? = nil,
          moistureThreshold: Double? = nil, autoWaterEnabled: Bool = false,
          groupId: String? = nil, isHiddenFromGraphs: Bool = false) {
         self.id = id
         self.name = name
+        self.alias = alias
         self.eui = eui
         self.linkedZoneId = linkedZoneId
         self.moistureThreshold = moistureThreshold

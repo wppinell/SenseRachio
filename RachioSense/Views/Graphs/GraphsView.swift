@@ -3,7 +3,7 @@ import SwiftUI
 struct GraphsView: View {
     @EnvironmentObject private var appState: AppState
     @Environment(\.modelContext) private var modelContext
-    @AppStorage(AppStorageKey.trendChartPeriod) private var chartPeriod = "24h"
+    @AppStorage(AppStorageKey.trendChartPeriod) private var chartPeriod = "3d"
 
     @State private var viewModel = GraphsViewModel()
 
@@ -32,10 +32,19 @@ struct GraphsView: View {
                 }
             }
             .task { await viewModel.load(modelContext: modelContext) }
-            .refreshable { await viewModel.load(modelContext: modelContext) }
+            .refreshable { await viewModel.forceRefresh(modelContext: modelContext) }
+            .onChange(of: chartPeriod) { _, newPeriod in
+                if newPeriod == "2w" {
+                    Task { await GraphDataPrefetcher.shared.fetchExtendedIfNeeded(modelContext: modelContext) }
+                } else if viewModel.isDataStale {
+                    Task { await viewModel.forceRefresh(modelContext: modelContext) }
+                }
+            }
         }
     }
-
+    
+    // MARK: - Background Refresh
+    
     // MARK: - Graphs Content
 
     @ViewBuilder
@@ -60,7 +69,8 @@ struct GraphsView: View {
                                 readingsFor: { eui, period in
                                     viewModel.readings(for: eui, period: period)
                                 },
-                                chartPeriod: $chartPeriod
+                                chartPeriod: $chartPeriod,
+                                isFetching: viewModel.isFetchingData
                             )
                         }
                         if !viewModel.unlinkedSensors.isEmpty {
@@ -70,7 +80,8 @@ struct GraphsView: View {
                                 readingsFor: { eui, period in
                                     viewModel.readings(for: eui, period: period)
                                 },
-                                chartPeriod: $chartPeriod
+                                chartPeriod: $chartPeriod,
+                                isFetching: viewModel.isFetchingData
                             )
                         }
                     } else {
@@ -84,9 +95,22 @@ struct GraphsView: View {
                                     readingsFor: { eui, period in
                                         viewModel.readings(for: eui, period: period)
                                     },
-                                    chartPeriod: $chartPeriod
+                                    chartPeriod: $chartPeriod,
+                                isFetching: viewModel.isFetchingData
                                 )
                             }
+                        }
+                        // Plus: zones NOT in any group
+                        ForEach(viewModel.zonesNotInAnyGroup) { zone in
+                            SensorGraphCard(
+                                title: zone.name,
+                                sensors: viewModel.sensors(linkedTo: zone.id),
+                                readingsFor: { eui, period in
+                                    viewModel.readings(for: eui, period: period)
+                                },
+                                chartPeriod: $chartPeriod,
+                                isFetching: viewModel.isFetchingData
+                            )
                         }
                         if !viewModel.unlinkedSensors.isEmpty {
                             SensorGraphCard(
@@ -95,7 +119,8 @@ struct GraphsView: View {
                                 readingsFor: { eui, period in
                                     viewModel.readings(for: eui, period: period)
                                 },
-                                chartPeriod: $chartPeriod
+                                chartPeriod: $chartPeriod,
+                                isFetching: viewModel.isFetchingData
                             )
                         }
                     }

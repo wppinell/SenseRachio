@@ -7,10 +7,30 @@ struct DiagnosticsView: View {
     @Query(sort: \SensorReading.recordedAt, order: .reverse) private var readings: [SensorReading]
     @EnvironmentObject private var appState: AppState
 
+    @Environment(\.modelContext) private var modelContext
     @State private var scLatency: String = "—"
     @State private var rachioLatency: String = "—"
     @State private var isMeasuringLatency = false
     @State private var copySuccess = false
+    @State private var showResetCacheConfirm = false
+    @State private var resetCacheSuccess = false
+
+    // History API test
+    @State private var historyTestResult: String = ""
+    @State private var isTestingHistory = false
+    @State private var historyTestStatus: HistoryTestStatus = .idle
+
+    enum HistoryTestStatus {
+        case idle, running, success, failure
+        var color: Color {
+            switch self {
+            case .idle:    return DS.Color.textTertiary
+            case .running: return DS.Color.warning
+            case .success: return DS.Color.online
+            case .failure: return DS.Color.error
+            }
+        }
+    }
 
     private var lastSyncDate: String {
         guard let latest = readings.first else { return "Never" }
@@ -100,6 +120,56 @@ struct DiagnosticsView: View {
                 }
             } header: { Text("Sync Status") }
 
+            // History API Test
+            Section {
+                Button {
+                    Task { await testHistoryAPI() }
+                } label: {
+                    HStack {
+                        Spacer()
+                        if isTestingHistory {
+                            ProgressView().scaleEffect(0.85)
+                            Text("Testing…")
+                        } else {
+                            Label("Test History Endpoint", systemImage: "clock.arrow.circlepath")
+                        }
+                        Spacer()
+                    }
+                }
+                .foregroundStyle(DS.Color.accent)
+                .disabled(isTestingHistory || !appState.hasSenseCraftCredentials)
+
+                if !historyTestResult.isEmpty {
+                    VStack(alignment: .leading, spacing: DS.Spacing.xs) {
+                        HStack {
+                            Circle()
+                                .fill(historyTestStatus.color)
+                                .frame(width: 8, height: 8)
+                            Text(historyTestStatus == .success ? "Success" : historyTestStatus == .failure ? "Failed" : "Running")
+                                .font(DS.Font.caption)
+                                .foregroundStyle(historyTestStatus.color)
+                                .bold()
+                        }
+                        ScrollView {
+                            Text(historyTestResult)
+                                .font(DS.Font.mono)
+                                .foregroundStyle(DS.Color.textSecondary)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .frame(maxHeight: 200)
+                        
+                        Button("Copy") {
+                            UIPasteboard.general.string = historyTestResult
+                            HapticFeedback.notification(.success)
+                        }
+                        .font(DS.Font.caption)
+                        .foregroundStyle(DS.Color.accent)
+                    }
+                    .padding(.vertical, DS.Spacing.xs)
+                }
+            } header: { Text("History API Test") }
+              footer: { Text("Tests /list_telemetry_data using first visible sensor. Check raw response to verify endpoint works.") }
+
             // App Info
             Section {
                 HStack {
@@ -165,11 +235,31 @@ struct DiagnosticsView: View {
                         Spacer()
                     }
                 }
-            }
+                Button(role: .destructive) {
+                    showResetCacheConfirm = true
+                } label: {
+                    HStack {
+                        Spacer()
+                        if resetCacheSuccess {
+                            Label("Cache Cleared!", systemImage: "checkmark")
+                                .foregroundStyle(DS.Color.online)
+                        } else {
+                            Label("Reset Graph Cache", systemImage: "arrow.clockwise")
+                        }
+                        Spacer()
+                    }
+                }
+            } footer: { Text("Reset Graph Cache clears stored readings and fetch timestamps. Historical data will be re-fetched from SenseCAP on next app open. Sensor configs, links, and aliases are preserved.") }
         }
         .listStyle(.insetGrouped)
         .navigationTitle("Diagnostics")
         .navigationBarTitleDisplayMode(.inline)
+        .confirmationDialog("Reset Graph Cache?", isPresented: $showResetCacheConfirm, titleVisibility: .visible) {
+            Button("Clear & Re-fetch", role: .destructive) { resetGraphCache() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("All stored readings will be deleted. Historical data will be re-fetched from SenseCAP. Sensor configs, links, and aliases are not affected.")
+        }
     }
 
     private var appVersion: String {
@@ -185,6 +275,66 @@ struct DiagnosticsView: View {
         if ms < 200 { return DS.Color.online }
         if ms < 600 { return DS.Color.warning }
         return DS.Color.error
+    }
+
+    private func testHistoryAPI() async {
+        guard let sensor = sensors.first(where: { !$0.isHiddenFromGraphs }) ?? sensors.first else {
+            historyTestResult = "No sensors available to test."
+            historyTestStatus = .failure
+            return
+        }
+
+        isTestingHistory = true
+        historyTestStatus = .running
+        historyTestResult = "Fetching 168h (7 day) history for: \(sensor.displayName) (\(sensor.eui))…"
+
+        let start = Date()
+        do {
+            let history = try await SenseCraftAPI.shared.fetchHistory(eui: sensor.eui, hours: 168)
+            let elapsed = Int(Date().timeIntervalSince(start) * 1000)
+
+            if history.isEmpty {
+                historyTestStatus = .failure
+                historyTestResult = """
+                ⚠️ Endpoint responded but returned 0 readings.
+                Sensor: \(sensor.displayName) (\(sensor.eui))
+                Duration: \(elapsed)ms
+                
+                Possible causes:
+                - No data in last 24h for this sensor
+                - Measurement IDs don't match (4103/4102)
+                - API time range params may need adjustment
+                """
+            } else {
+                historyTestStatus = .success
+                let sorted = history.sorted { $0.timestamp < $1.timestamp }
+                let first = sorted.first!
+                let last = sorted.last!
+                let formatter = DateFormatter()
+                formatter.dateStyle = .short
+                formatter.timeStyle = .short
+                historyTestResult = """
+                ✅ Success — \(history.count) readings in \(elapsed)ms
+                Sensor: \(sensor.displayName) (\(sensor.eui))
+                Range: \(formatter.string(from: first.timestamp)) → \(formatter.string(from: last.timestamp))
+                
+                Sample (last 3):
+                \(sorted.suffix(3).map { r in
+                    "  \(formatter.string(from: r.timestamp)): moisture=\(r.moisture.map { String(format: "%.1f%%", $0) } ?? "nil"), temp=\(r.tempC.map { String(format: "%.1f°C", $0) } ?? "nil")"
+                }.joined(separator: "\n"))
+                """
+            }
+        } catch {
+            let elapsed = Int(Date().timeIntervalSince(start) * 1000)
+            historyTestStatus = .failure
+            historyTestResult = """
+            ❌ Error after \(elapsed)ms
+            Sensor: \(sensor.displayName) (\(sensor.eui))
+            Error: \(error.localizedDescription)
+            """
+        }
+
+        isTestingHistory = false
     }
 
     private func measureLatency() async {
@@ -205,6 +355,23 @@ struct DiagnosticsView: View {
             _ = try? await RachioAPI.shared.getDevices()
             let ms = Int(Date().timeIntervalSince(start) * 1000)
             await MainActor.run { rachioLatency = "\(ms) ms" }
+        }
+    }
+
+    private func resetGraphCache() {
+        // Delete all stored readings
+        for reading in readings {
+            modelContext.delete(reading)
+        }
+        _ = try? modelContext.save()
+
+        // Clear prefetcher timestamps so next open does full 7-day fetch
+        UserDefaults.standard.removeObject(forKey: "lastIncrementalFetchTimestamp")
+
+        HapticFeedback.notification(.success)
+        resetCacheSuccess = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+            resetCacheSuccess = false
         }
     }
 

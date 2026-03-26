@@ -161,4 +161,146 @@ final class SenseCraftAPI {
             throw SenseCraftAPIError.decodingError(error)
         }
     }
+    
+    // MARK: - Fetch Historical Data (up to 7 days)
+    
+    struct HistoricalReading {
+        let timestamp: Date
+        let moisture: Double?
+        let tempC: Double?
+    }
+    
+    /// Returns raw JSON string from history endpoint — for diagnostics only.
+    func fetchHistoryRaw(eui: String, hours: Int = 24) async throws -> String {
+        let endTime = Int(Date().timeIntervalSince1970 * 1000)
+        let startTime = endTime - (hours * 3600 * 1000)
+        let request = try makeAuthenticatedRequest(
+            path: "/list_telemetry_data",
+            queryItems: [
+                URLQueryItem(name: "device_eui", value: eui),
+                URLQueryItem(name: "time_start", value: String(startTime)),
+                URLQueryItem(name: "time_end", value: String(endTime))
+            ]
+        )
+        let (data, _) = try await session.data(for: request)
+        
+        // Pretty print if possible
+        if let obj = try? JSONSerialization.jsonObject(with: data),
+           let pretty = try? JSONSerialization.data(withJSONObject: obj, options: .prettyPrinted),
+           let str = String(data: pretty, encoding: .utf8) {
+            return str
+        }
+        return String(data: data, encoding: .utf8) ?? "<unreadable>"
+    }
+
+    /// Fetches historical telemetry data for a sensor, paging in 24h chunks if needed.
+    /// - Parameters:
+    ///   - eui: Device EUI
+    ///   - hours: Number of hours to fetch (default 168 = 7 days)
+    /// - Returns: Array of historical readings sorted by time ascending
+    func fetchHistory(eui: String, hours: Int = 168) async throws -> [HistoricalReading] {
+        // If > 24h, fetch in 24h chunks to work around API result limits
+        if hours > 24 {
+            var allReadings: [HistoricalReading] = []
+            let chunkHours = 24
+            let chunks = Int(ceil(Double(hours) / Double(chunkHours)))
+            let nowMs = Int(Date().timeIntervalSince1970 * 1000)
+
+            for i in 0..<chunks {
+                let chunkEndMs   = nowMs - (i * chunkHours * 3600 * 1000)
+                let chunkStartMs = chunkEndMs - (chunkHours * 3600 * 1000)
+                let chunk = try await fetchHistoryChunk(eui: eui, startMs: chunkStartMs, endMs: chunkEndMs)
+                allReadings.append(contentsOf: chunk)
+            }
+
+            return allReadings.sorted { $0.timestamp < $1.timestamp }
+        }
+
+        // Single chunk for <= 24h
+        let endTime = Int(Date().timeIntervalSince1970 * 1000)
+        let startTime = endTime - (hours * 3600 * 1000)
+        return try await fetchHistoryChunk(eui: eui, startMs: startTime, endMs: endTime)
+    }
+
+    func fetchHistoryChunk(eui: String, startMs: Int, endMs: Int) async throws -> [HistoricalReading] {
+        let request = try makeAuthenticatedRequest(
+            path: "/list_telemetry_data",
+            queryItems: [
+                URLQueryItem(name: "device_eui", value: eui),
+                URLQueryItem(name: "time_start", value: String(startMs)),
+                URLQueryItem(name: "time_end", value: String(endMs))
+            ]
+        )
+        
+        let (data, response) = try await session.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw SenseCraftAPIError.invalidResponse
+        }
+        guard httpResponse.statusCode == 200 else {
+            throw SenseCraftAPIError.httpError(httpResponse.statusCode)
+        }
+        
+        // Parse using JSONSerialization — response uses nested arrays, not objects
+        // Structure: { "code": "0", "data": { "list": [channelDescriptors, dataSeries] } }
+        // channelDescriptors: [[channelIdx, measurementId], ...]
+        // dataSeries: [[[value, isoTimestamp], ...], ...]  — one series per channel
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let code = json["code"] as? String, code == "0",
+              let dataObj = json["data"] as? [String: Any],
+              let list = dataObj["list"] as? [Any],
+              list.count >= 2,
+              let channelDescriptors = list[0] as? [[Any]],
+              let dataSeriesRaw = list[1] as? [Any] else {
+            throw SenseCraftAPIError.invalidResponse
+        }
+        
+        // Map measurementId → series index
+        var measurementIdToIndex: [String: Int] = [:]
+        for (i, descriptor) in channelDescriptors.enumerated() {
+            if let measurementId = descriptor.count > 1 ? descriptor[1] as? String : nil {
+                measurementIdToIndex[measurementId] = i
+            }
+        }
+        
+        let isoFormatter = ISO8601DateFormatter()
+        isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        
+        // Helper to extract [[value, timestamp]] series at index
+        func series(at index: Int?) -> [[Any]] {
+            guard let i = index, i < dataSeriesRaw.count,
+                  let s = dataSeriesRaw[i] as? [[Any]] else { return [] }
+            return s
+        }
+        
+        let moistureSeries = series(at: measurementIdToIndex[moistureMeasurementID])
+        let tempSeries     = series(at: measurementIdToIndex[tempMeasurementID])
+        
+        // Build temp lookup keyed by ISO timestamp string
+        var tempByTimestamp: [String: Double] = [:]
+        for point in tempSeries {
+            if point.count >= 2,
+               let value = point[0] as? Double,
+               let ts = point[1] as? String {
+                tempByTimestamp[ts] = value
+            }
+        }
+        
+        // Build readings from moisture series
+        var readings: [HistoricalReading] = []
+        for point in moistureSeries {
+            guard point.count >= 2,
+                  let moisture = point[0] as? Double,
+                  let tsString = point[1] as? String,
+                  let date = isoFormatter.date(from: tsString) else { continue }
+            
+            readings.append(HistoricalReading(
+                timestamp: date,
+                moisture: moisture,
+                tempC: tempByTimestamp[tsString]
+            ))
+        }
+        
+        return readings.sorted { $0.timestamp < $1.timestamp }
+    }
 }

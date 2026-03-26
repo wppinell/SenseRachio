@@ -18,7 +18,7 @@ struct DashboardView: View {
     @Query private var sensorConfigs: [SensorConfig]
     
     private var sensorNameByEUI: [String: String] {
-        Dictionary(uniqueKeysWithValues: sensorConfigs.map { ($0.eui, $0.name) })
+        Dictionary(uniqueKeysWithValues: sensorConfigs.map { ($0.eui, $0.displayName) })
     }
 
     private var top4Sensors: [SensorReading] {

@@ -334,17 +334,29 @@ struct SensorDetailView: View {
                     .font(DS.Font.cardTitle)
                     .foregroundStyle(DS.Color.textPrimary)
                 Spacer()
-                TextField("Sensor alias", text: Binding(
-                    get: { sensor.name },
+                TextField("Enter alias", text: Binding(
+                    get: { sensor.alias ?? "" },
                     set: { newValue in
-                        sensor.name = newValue
-                        try? modelContext.save()
+                        sensor.alias = newValue.isEmpty ? nil : newValue
+                        _ = try? modelContext.save()
                     }
                 ))
                 .font(DS.Font.cardBody)
                 .foregroundStyle(DS.Color.textSecondary)
                 .multilineTextAlignment(.trailing)
                 .textFieldStyle(.plain)
+            }
+            .padding(DS.Spacing.lg)
+            
+            // Original name (read-only)
+            HStack {
+                Text("Original Name")
+                    .font(DS.Font.cardTitle)
+                    .foregroundStyle(DS.Color.textTertiary)
+                Spacer()
+                Text(sensor.name)
+                    .font(DS.Font.cardBody)
+                    .foregroundStyle(DS.Color.textTertiary)
             }
             .padding(DS.Spacing.lg)
             

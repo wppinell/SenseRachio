@@ -6,8 +6,9 @@ struct SensorZoneLinksView: View {
     @Query private var zones: [ZoneConfig]
     @Environment(\.modelContext) private var modelContext
 
-    private var linkedSensors: [SensorConfig] { sensors.filter { $0.linkedZoneId != nil } }
-    private var unlinkedSensors: [SensorConfig] { sensors.filter { $0.linkedZoneId == nil } }
+    private var visibleSensors: [SensorConfig] { sensors.filter { !$0.isHiddenFromGraphs } }
+    private var linkedSensors: [SensorConfig] { visibleSensors.filter { $0.linkedZoneId != nil } }
+    private var unlinkedSensors: [SensorConfig] { visibleSensors.filter { $0.linkedZoneId == nil } }
 
     var body: some View {
         List {
@@ -51,16 +52,7 @@ struct SensorZoneLinksView: View {
                 }
             }
 
-            if !zones.isEmpty {
-                Section {
-                    NavigationLink {
-                        SensorLinkDetailView(sensor: nil, zones: zones)
-                    } label: {
-                        Label("Create New Link", systemImage: "plus.circle.fill")
-                            .foregroundStyle(DS.Color.accent)
-                    }
-                }
-            }
+
         }
         .listStyle(.insetGrouped)
         .navigationTitle("Sensor-Zone Links")
@@ -89,8 +81,13 @@ private struct SensorLinkRowLabel: View {
                 .clipShape(RoundedRectangle(cornerRadius: 6))
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(sensor.name)
+                Text(sensor.displayName)
                     .font(DS.Font.cardTitle)
+                if sensor.alias != nil && !sensor.alias!.isEmpty {
+                    Text(sensor.name)
+                        .font(DS.Font.caption)
+                        .foregroundStyle(DS.Color.textTertiary)
+                }
                 if let zoneName = linkedZoneName {
                     HStack(spacing: DS.Spacing.xs) {
                         Image(systemName: "arrow.right")
@@ -126,7 +123,7 @@ struct SensorLinkDetailView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
 
-    @State private var sensorName: String = ""
+    @State private var sensorAlias: String = ""
     @State private var selectedZoneId: String = ""
     @State private var threshold: Double = 30
     @State private var autoWaterEnabled: Bool = false
@@ -142,20 +139,27 @@ struct SensorLinkDetailView: View {
             if let sensor {
                 Section {
                     HStack {
-                        Text("Name")
+                        Text("Alias")
                             .foregroundStyle(DS.Color.textSecondary)
                         Spacer()
-                        TextField("Friendly name", text: $sensorName)
+                        TextField("Enter alias", text: $sensorAlias)
                             .multilineTextAlignment(.trailing)
                             .foregroundStyle(DS.Color.textPrimary)
                     }
                     HStack {
+                        Text("Original Name")
+                            .foregroundStyle(DS.Color.textTertiary)
+                        Spacer()
+                        Text(sensor.name)
+                            .foregroundStyle(DS.Color.textTertiary)
+                    }
+                    HStack {
                         Text("EUI")
-                            .foregroundStyle(DS.Color.textSecondary)
+                            .foregroundStyle(DS.Color.textTertiary)
                         Spacer()
                         Text(sensor.eui)
                             .font(DS.Font.mono)
-                            .foregroundStyle(DS.Color.textSecondary)
+                            .foregroundStyle(DS.Color.textTertiary)
                     }
                 } header: { Text("Sensor") }
             }
@@ -208,18 +212,11 @@ struct SensorLinkDetailView: View {
                     set: { isHiddenFromGraphs = !$0 }
                 ))
                 .tint(DS.Color.accent)
-            } header: { Text("Graphs") }
-              footer: { Text("Hidden sensors are excluded from all graphs and Mission Control.") }
+            } header: { Text("Visibility") }
+              footer: { Text("Hidden sensors are excluded from all graphs.") }
 
-            Section {
-                Button("Save Link") {
-                    saveLink()
-                }
-                .frame(maxWidth: .infinity, alignment: .center)
-                .fontWeight(.semibold)
-                .foregroundStyle(DS.Color.accent)
-
-                if sensor?.linkedZoneId != nil {
+            if sensor?.linkedZoneId != nil {
+                Section {
                     Button("Remove Link", role: .destructive) {
                         removeLink()
                     }
@@ -228,38 +225,40 @@ struct SensorLinkDetailView: View {
             }
         }
         .listStyle(.insetGrouped)
-        .navigationTitle(sensor?.name ?? "New Link")
+        .navigationTitle(sensor?.displayName ?? "Link")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
             if let sensor {
-                sensorName = sensor.name
+                sensorAlias = sensor.alias ?? ""
                 selectedZoneId = sensor.linkedZoneId ?? ""
                 threshold = sensor.moistureThreshold ?? 30
                 autoWaterEnabled = sensor.autoWaterEnabled
                 isHiddenFromGraphs = sensor.isHiddenFromGraphs
             }
         }
+        .onChange(of: sensorAlias) { saveChanges() }
+        .onChange(of: selectedZoneId) { saveChanges() }
+        .onChange(of: threshold) { saveChanges() }
+        .onChange(of: autoWaterEnabled) { saveChanges() }
+        .onChange(of: isHiddenFromGraphs) { saveChanges() }
     }
 
-    private func saveLink() {
+    private func saveChanges() {
         guard let sensor else { return }
-        if !sensorName.trimmingCharacters(in: .whitespaces).isEmpty {
-            sensor.name = sensorName.trimmingCharacters(in: .whitespaces)
-        }
+        let trimmedAlias = sensorAlias.trimmingCharacters(in: .whitespaces)
+        sensor.alias = trimmedAlias.isEmpty ? nil : trimmedAlias
         sensor.linkedZoneId = selectedZoneId.isEmpty ? nil : selectedZoneId
         sensor.moistureThreshold = threshold
         sensor.autoWaterEnabled = autoWaterEnabled
         sensor.isHiddenFromGraphs = isHiddenFromGraphs
-        try? modelContext.save()
-        HapticFeedback.notification(.success)
-        dismiss()
+        _ = try? modelContext.save()
     }
 
     private func removeLink() {
-        guard let sensor else { return }
-        sensor.linkedZoneId = nil
-        sensor.autoWaterEnabled = false
-        try? modelContext.save()
+        guard sensor != nil else { return }
+        selectedZoneId = ""
+        autoWaterEnabled = false
+        saveChanges()
         HapticFeedback.notification(.success)
         dismiss()
     }

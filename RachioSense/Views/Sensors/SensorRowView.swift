@@ -7,20 +7,34 @@ struct SensorRowView: View {
     @AppStorage(AppStorageKey.sensorPrimaryLabel) private var primaryLabel = "name"
     @AppStorage(AppStorageKey.sensorSecondaryLabel) private var secondaryLabel = "moistureTemp"
     @AppStorage(AppStorageKey.statusIndicatorStyle) private var indicatorStyle = "coloredDot"
+    @AppStorage(AppStorageKey.autoWaterThreshold) private var autoWaterThreshold: Double = 20
+    @AppStorage(AppStorageKey.dryThreshold) private var dryThreshold: Double = 25
+    @AppStorage(AppStorageKey.lowThreshold) private var highThreshold: Double = 40  // "High Level"
 
     private var moisture: Double { reading?.moisture ?? 0 }
     private var hasReading: Bool { reading != nil }
-    private var moistureColor: Color { DS.Color.moisture(moisture) }
+
+    private var moistureColor: Color {
+        guard hasReading else { return DS.Color.textTertiary }
+        if moisture < autoWaterThreshold { return DS.Color.error }         // red — needs water now
+        if moisture < dryThreshold       { return DS.Color.warning }       // yellow — getting dry
+        if moisture < highThreshold      { return DS.Color.online }        // green — good
+        return Color(hex: "0EA5E9")                                        // blue — above high
+    }
 
     private var primaryText: String {
-        switch primaryLabel {
-        case "eui":   return sensor.eui
-        case "group": return sensor.groupId ?? sensor.name
-        default:      return sensor.name
-        }
+        sensor.displayName
+    }
+    
+    private var hasAlias: Bool {
+        sensor.alias != nil && !sensor.alias!.isEmpty
     }
 
     private var secondaryText: String? {
+        // If alias is set, show original name first
+        if hasAlias {
+            return sensor.name
+        }
         guard hasReading else { return nil }
         switch secondaryLabel {
         case "moisture":     return "\(Int(moisture))% moisture"
@@ -28,6 +42,12 @@ struct SensorRowView: View {
         case "group":        return sensor.groupId
         default:             return tempDisplay.map { "\(Int(moisture))% · \($0)" }
         }
+    }
+    
+    private var tertiaryText: String? {
+        // If alias is set, show reading info as tertiary
+        guard hasAlias, hasReading else { return nil }
+        return tempDisplay.map { "\(Int(moisture))% · \($0)" }
     }
 
     private var tempDisplay: String? {
@@ -46,7 +66,7 @@ struct SensorRowView: View {
                 // Status indicator
                 if indicatorStyle == "coloredDot" {
                     DSStatusDot(
-                        status: isDisabled ? .unknown : (!hasReading ? .unknown : moisture < 25 ? .offline : moisture < 40 ? .warning : .online),
+                        status: isDisabled ? .unknown : (!hasReading ? .unknown : moisture < autoWaterThreshold ? .offline : moisture < dryThreshold ? .warning : .online),
                         size: 10
                     )
                     .padding(.top, 4)
@@ -70,12 +90,17 @@ struct SensorRowView: View {
                     if let secondary = secondaryText, !isDisabled {
                         Text(secondary)
                             .font(DS.Font.caption)
+                            .foregroundStyle(hasAlias ? DS.Color.textTertiary : DS.Color.textSecondary)
+                    }
+                    if let tertiary = tertiaryText, !isDisabled {
+                        Text(tertiary)
+                            .font(DS.Font.caption)
                             .foregroundStyle(DS.Color.textSecondary)
                     } else if isDisabled {
                         Text("Not collecting data")
                             .font(DS.Font.caption)
                             .foregroundStyle(DS.Color.textTertiary)
-                    } else if !hasReading {
+                    } else if !hasReading && !hasAlias {
                         Text("No data yet")
                             .font(DS.Font.caption)
                             .foregroundStyle(DS.Color.textTertiary)

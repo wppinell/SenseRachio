@@ -95,7 +95,9 @@ enum AppStorageKey {
     static let volumeUnit              = "display_volume_unit"         // "gallons"|"liters"
     static let dashboardCardOrder      = "display_dashboard_card_order"
     static let dashboardCardVisibility = "display_dashboard_card_visibility"
-    static let trendChartPeriod        = "display_trend_chart_period"  // "6h"|"12h"|"24h"|"7d"
+    static let trendChartPeriod        = "display_trend_chart_period"  // "1d"|"2d"|"3d"|"4d"|"5d"|"1w"|"2w"
+    static let graphYMin               = "display_graph_y_min"         // Double default 15
+    static let graphYMax               = "display_graph_y_max"         // Double default 45
     static let quickActionsOnCards     = "display_quick_actions"
     static let sensorPrimaryLabel      = "display_sensor_primary"      // "name"|"eui"|"group"
     static let sensorSecondaryLabel    = "display_sensor_secondary"    // "moistureTemp"|"moisture"|"lastUpdated"|"group"

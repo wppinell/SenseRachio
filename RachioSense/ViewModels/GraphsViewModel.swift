@@ -9,7 +9,15 @@ final class GraphsViewModel {
     var zoneGroups: [ZoneGroup] = []
     var zoneConfigs: [ZoneConfig] = []
     var isLoading: Bool = false
+    var isFetchingData: Bool = false  // true while network fetch in-progress
     var errorMessage: String? = nil
+    private(set) var lastFetchedAt: Date? = nil
+
+    /// True if no fetch has happened yet, or last fetch was > 10 minutes ago
+    var isDataStale: Bool {
+        guard let last = lastFetchedAt else { return true }
+        return Date().timeIntervalSince(last) > 600
+    }
 
     // MARK: - Computed
 
@@ -27,6 +35,12 @@ final class GraphsViewModel {
     /// Visible sensors with no linkedZoneId.
     var unlinkedSensors: [SensorConfig] {
         visibleSensors.filter { $0.linkedZoneId == nil }
+    }
+    
+    /// Zones that have linked sensors but are NOT in any group.
+    var zonesNotInAnyGroup: [ZoneConfig] {
+        let allGroupedZoneIds = Set(zoneGroups.flatMap { $0.assignedZoneIds })
+        return zonesWithLinkedSensors.filter { !allGroupedZoneIds.contains($0.id) }
     }
 
     /// Returns visible sensors linked to a specific zone.
@@ -64,22 +78,98 @@ final class GraphsViewModel {
 
         zoneConfigs = (try? modelContext.fetch(FetchDescriptor<ZoneConfig>())) ?? []
 
+        // Wait for prefetcher to finish before reading — ensures graphs show full history
+        isFetchingData = true
+        await GraphDataPrefetcher.shared.fetchIfNeeded(modelContext: modelContext)
+        isFetchingData = false
+
+        reloadReadings(modelContext: modelContext)
+        lastFetchedAt = Date()
+        isLoading = false
+    }
+    
+    /// Force refresh - clears local data, fetches fresh, then reloads
+    @MainActor
+    func forceRefresh(modelContext: ModelContext) async {
+        isLoading = true
+        // Invalidate displayed readings immediately so graphs show waiting state
+        readingsByEUI = [:]
+        isFetchingData = true
+        await GraphDataPrefetcher.shared.forceFull(modelContext: modelContext)
+        isFetchingData = false
+        reloadReadings(modelContext: modelContext)
+        lastFetchedAt = Date()
+        isLoading = false
+    }
+    
+    /// Reload readings from SwiftData into memory
+    @MainActor
+    private func reloadReadings(modelContext: ModelContext) {
         let allReadings = (try? modelContext.fetch(FetchDescriptor<SensorReading>())) ?? []
         var grouped: [String: [SensorReading]] = [:]
         for r in allReadings { grouped[r.eui, default: []].append(r) }
         readingsByEUI = grouped
+    }
+    
 
-        isLoading = false
+    // MARK: - Lightweight Refresh (fetch latest only)
+    
+    @MainActor
+    func refreshLatest(modelContext: ModelContext) async {
+        let sensorsToRefresh = visibleSensors
+        let now = Date()
+
+        // Fetch all sensors in parallel
+        let results = await withTaskGroup(of: (String, SenseCraftReading?).self) { group in
+            for sensor in sensorsToRefresh {
+                group.addTask {
+                    do {
+                        let reading = try await SenseCraftAPI.shared.fetchReading(eui: sensor.eui)
+                        return (sensor.eui, reading)
+                    } catch {
+                        print("Refresh failed for \(sensor.eui): \(error)")
+                        return (sensor.eui, nil)
+                    }
+                }
+            }
+            var collected: [(String, SenseCraftReading?)] = []
+            for await result in group { collected.append(result) }
+            return collected
+        }
+
+        // Insert on main actor
+        for (eui, reading) in results {
+            guard let moisture = reading?.moisture else { continue }
+            let newReading = SensorReading(
+                eui: eui,
+                moisture: moisture,
+                tempC: reading?.tempC ?? 0,
+                recordedAt: now
+            )
+            modelContext.insert(newReading)
+        }
+        _ = try? modelContext.save()
+
+        // Reload readings into memory
+        let allReadings = (try? modelContext.fetch(FetchDescriptor<SensorReading>())) ?? []
+        var grouped: [String: [SensorReading]] = [:]
+        for r in allReadings { grouped[r.eui, default: []].append(r) }
+        readingsByEUI = grouped
+        lastFetchedAt = Date()
     }
 
     // MARK: - Private
 
     private func cutoffDate(for period: String) -> Date {
         switch period {
-        case "6h":  return Date().addingTimeInterval(-6 * 3600)
-        case "12h": return Date().addingTimeInterval(-12 * 3600)
-        case "7d":  return Date().addingTimeInterval(-7 * 86400)
-        default:    return Date().addingTimeInterval(-86400)
+        case "1d": return Date().addingTimeInterval(-1 * 86400)
+        case "2d": return Date().addingTimeInterval(-2 * 86400)
+        case "3d": return Date().addingTimeInterval(-3 * 86400)
+        case "4d": return Date().addingTimeInterval(-4 * 86400)
+        case "5d": return Date().addingTimeInterval(-5 * 86400)
+        case "1w": return Date().addingTimeInterval(-7 * 86400)
+        case "2w": return Date().addingTimeInterval(-14 * 86400)
+        default:   return Date().addingTimeInterval(-86400)
         }
     }
 }

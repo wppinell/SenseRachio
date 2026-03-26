@@ -4,7 +4,6 @@ import SwiftData
 struct GroupingView: View {
     @Query(sort: \ZoneGroup.sortOrder) private var groups: [ZoneGroup]
     @Environment(\.modelContext) private var modelContext
-    @AppStorage(AppStorageKey.sensorGrouping) private var sensorGrouping = "none"
     @AppStorage(AppStorageKey.zoneGrouping) private var zoneGrouping = "none"
 
     @State private var showAddGroup = false
@@ -19,12 +18,6 @@ struct GroupingView: View {
     var body: some View {
         List {
             Section {
-                Picker("Sensor view grouping", selection: $sensorGrouping) {
-                    Text("None").tag("none")
-                    ForEach(groups) { g in
-                        Text(g.name).tag(g.id)
-                    }
-                }
                 Picker("Zone view grouping", selection: $zoneGrouping) {
                     Text("None").tag("none")
                     ForEach(groups) { g in
@@ -32,7 +25,7 @@ struct GroupingView: View {
                     }
                 }
             } header: { Text("Default View") }
-             footer: { Text("Choose which group to show by default in the Sensors and Zones tabs.") }
+             footer: { Text("Choose which group to show by default in the Zones tab. Graphs are grouped automatically based on zone groups.") }
 
             Section {
                 if groups.isEmpty {

@@ -20,12 +20,12 @@ struct ThresholdsView: View {
 
             Section {
                 thresholdSlider(
-                    label: "Low Level",
-                    description: "Soil moisture is getting low",
+                    label: "High Level",
+                    description: "Soil moisture is at a good high level",
                     value: $lowThreshold,
                     range: 30...80
                 )
-            } header: { Text("Low Level") }
+            } header: { Text("High Level") }
              footer: { Text("Alert when moisture drops to or below this level. Current: \(Int(lowThreshold))%") }
 
             Section {
@@ -114,10 +114,10 @@ struct ThresholdsView: View {
     }
 
     private func levelLabel(_ val: Double) -> String {
-        if val <= autoWaterThreshold { return "Auto-water" }
-        if val <= dryThreshold { return "Dry" }
-        if val <= lowThreshold { return "Low" }
-        return "Good"
+        if val <= autoWaterThreshold { return "🔴 Auto-water" }
+        if val <= dryThreshold       { return "🟡 Dry" }
+        if val <= lowThreshold       { return "🟢 Good" }
+        return "🔵 Above high"
     }
 
     private func resetDefaults() {

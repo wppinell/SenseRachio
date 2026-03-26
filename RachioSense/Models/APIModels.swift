@@ -40,15 +40,44 @@ struct SenseCraftChannel: Codable {
 
 struct SenseCraftPoint: Codable {
     let measurementId: String
-    let measurementValue: Double?   // API returns number, not string
-    let time: String?
+    let measurementValue: Double?
+    
+    // Time can be Int (milliseconds) for historical data or String for latest
+    private let _time: FlexibleTime?
+    
+    var time: Int? {
+        _time?.intValue
+    }
 
     enum CodingKeys: String, CodingKey {
         case measurementId = "measurement_id"
         case measurementValue = "measurement_value"
-        case time
+        case _time = "time"
     }
 }
+
+// Handle time field that can be Int or String
+struct FlexibleTime: Codable {
+    let intValue: Int?
+    
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        if let intVal = try? container.decode(Int.self) {
+            intValue = intVal
+        } else if let stringVal = try? container.decode(String.self), let parsed = Int(stringVal) {
+            intValue = parsed
+        } else {
+            intValue = nil
+        }
+    }
+    
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(intValue)
+    }
+}
+
+// /list_telemetry_data is parsed manually via JSONSerialization (nested array format)
 
 // MARK: - Rachio API Response Models
 

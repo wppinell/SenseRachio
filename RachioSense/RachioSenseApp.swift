@@ -7,6 +7,7 @@ import UserNotifications
 struct RachioSenseApp: App {
     let modelContainer: ModelContainer
     @StateObject private var appState = AppState()
+    @Environment(\.scenePhase) private var scenePhase
 
     init() {
         do {
@@ -29,5 +30,20 @@ struct RachioSenseApp: App {
             }
         }
         .modelContainer(modelContainer)
+        .onChange(of: scenePhase) { _, newPhase in
+            if newPhase == .active {
+                Task { await prefetchGraphData() }
+            }
+        }
+    }
+    
+    /// Pre-fetch graph data on app launch (background thread)
+    @MainActor
+    private func prefetchGraphData() async {
+        guard appState.hasSenseCraftCredentials else { return }
+        
+        let context = modelContainer.mainContext
+        let prefetcher = GraphDataPrefetcher.shared
+        await prefetcher.fetchIfNeeded(modelContext: context)
     }
 }
