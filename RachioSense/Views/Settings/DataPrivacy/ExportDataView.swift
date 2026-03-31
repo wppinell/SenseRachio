@@ -52,14 +52,32 @@ struct ExportDataView: View {
             }
 
             Section {
-                let count = filteredReadings.count
-                HStack {
-                    Text("Records to export")
-                        .foregroundStyle(DS.Color.textSecondary)
-                    Spacer()
-                    Text("\(count)")
-                        .foregroundStyle(DS.Color.textPrimary)
-                        .monospacedDigit()
+                if includeReadings {
+                    HStack {
+                        Text("Sensor readings")
+                            .foregroundStyle(DS.Color.textSecondary)
+                        Spacer()
+                        Text("\(filteredReadings.count)")
+                            .foregroundStyle(DS.Color.textPrimary)
+                            .monospacedDigit()
+                    }
+                }
+                if includeSettings {
+                    HStack {
+                        Text("Sensor configs")
+                            .foregroundStyle(DS.Color.textSecondary)
+                        Spacer()
+                        Text("\(sensors.count)")
+                            .foregroundStyle(DS.Color.textPrimary)
+                            .monospacedDigit()
+                    }
+                    HStack {
+                        Text("App settings")
+                            .foregroundStyle(DS.Color.textSecondary)
+                        Spacer()
+                        Text("\(appSettingsDict().count) keys")
+                            .foregroundStyle(DS.Color.textPrimary)
+                    }
                 }
             } header: { Text("Preview") }
 
@@ -129,10 +147,19 @@ struct ExportDataView: View {
     }
 
     private func generateCSV() throws -> Data {
-        var csv = "eui,moisture,temperature_c,recorded_at\n"
-        for r in filteredReadings {
-            let dateStr = ISO8601DateFormatter().string(from: r.recordedAt)
-            csv += "\(r.eui),\(r.moisture),\(r.tempC),\(dateStr)\n"
+        var csv = ""
+        if includeReadings {
+            csv += "eui,moisture,temperature_c,recorded_at\n"
+            for r in filteredReadings {
+                let dateStr = ISO8601DateFormatter().string(from: r.recordedAt)
+                csv += "\(r.eui),\(r.moisture),\(r.tempC),\(dateStr)\n"
+            }
+        }
+        if includeSettings {
+            csv += "\n# App Settings\nkey,value\n"
+            for (key, value) in appSettingsDict() {
+                csv += "\(key),\(value)\n"
+            }
         }
         guard let data = csv.data(using: .utf8) else {
             throw NSError(domain: "Export", code: 0, userInfo: [NSLocalizedDescriptionKey: "Failed to encode CSV"])
@@ -141,15 +168,69 @@ struct ExportDataView: View {
     }
 
     private func generateJSON() throws -> Data {
-        let records = filteredReadings.map { r -> [String: Any] in
-            [
-                "eui": r.eui,
-                "moisture": r.moisture,
-                "temperature_c": r.tempC,
-                "recorded_at": ISO8601DateFormatter().string(from: r.recordedAt)
-            ]
+        var root: [String: Any] = [:]
+
+        if includeReadings {
+            root["sensor_readings"] = filteredReadings.map { r -> [String: Any] in
+                [
+                    "eui": r.eui,
+                    "moisture": r.moisture,
+                    "temperature_c": r.tempC,
+                    "recorded_at": ISO8601DateFormatter().string(from: r.recordedAt)
+                ]
+            }
         }
-        return try JSONSerialization.data(withJSONObject: records, options: .prettyPrinted)
+
+        if includeSettings {
+            root["app_settings"] = appSettingsDict()
+            root["sensor_configs"] = sensors.map { s -> [String: Any] in
+                var d: [String: Any] = [
+                    "id": s.id,
+                    "name": s.name,
+                    "eui": s.eui,
+                    "auto_water_enabled": s.autoWaterEnabled,
+                    "is_hidden_from_graphs": s.isHiddenFromGraphs
+                ]
+                if let alias = s.alias { d["alias"] = alias }
+                if let zoneId = s.linkedZoneId { d["linked_zone_id"] = zoneId }
+                if let threshold = s.moistureThreshold { d["moisture_threshold"] = threshold }
+                if let group = s.groupId { d["group_id"] = group }
+                return d
+            }
+        }
+
+        return try JSONSerialization.data(withJSONObject: root, options: .prettyPrinted)
+    }
+
+    /// Collect all AppStorage settings (no credentials)
+    private func appSettingsDict() -> [String: String] {
+        let keys: [String] = [
+            AppStorageKey.theme, AppStorageKey.accentColor,
+            AppStorageKey.animationsEnabled, AppStorageKey.hapticsEnabled,
+            AppStorageKey.temperatureUnit, AppStorageKey.moistureUnit,
+            AppStorageKey.durationUnit, AppStorageKey.volumeUnit,
+            AppStorageKey.dryThreshold, AppStorageKey.lowThreshold,
+            AppStorageKey.autoWaterThreshold,
+            AppStorageKey.foregroundRefresh, AppStorageKey.backgroundRefresh,
+            AppStorageKey.dryAlertsEnabled, AppStorageKey.lowAlertsEnabled,
+            AppStorageKey.sensorOfflineEnabled, AppStorageKey.zoneStartedEnabled,
+            AppStorageKey.zoneStoppedEnabled, AppStorageKey.scheduleRunEnabled,
+            AppStorageKey.dailySummaryEnabled, AppStorageKey.weeklyReportEnabled,
+            AppStorageKey.historyRetention, AppStorageKey.exportFormat,
+            AppStorageKey.trendChartPeriod, AppStorageKey.graphYMin,
+            AppStorageKey.graphYMax, AppStorageKey.quickActionsOnCards,
+            AppStorageKey.sensorPrimaryLabel, AppStorageKey.sensorSecondaryLabel,
+            AppStorageKey.statusIndicatorStyle, AppStorageKey.sensorGrouping,
+            AppStorageKey.zoneGrouping
+        ]
+        let defaults = UserDefaults.standard
+        var result: [String: String] = [:]
+        for key in keys {
+            if let val = defaults.object(forKey: key) {
+                result[key] = "\(val)"
+            }
+        }
+        return result
     }
 
     private func dateString() -> String {

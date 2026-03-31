@@ -118,13 +118,19 @@ struct ZoneRowView: View {
 
     private func formatDuration(_ seconds: Int) -> String {
         switch durationUnit {
-        case "seconds":       return "\(seconds)s"
+        case "seconds": return "\(seconds)s"
         case "hoursMinutes":
-            let h = seconds / 3600
-            let m = (seconds % 3600) / 60
-            return h > 0 ? "\(h)h \(m)m" : "\(m)m"
+            if seconds >= 3600 {
+                let hours = Double(seconds) / 3600.0
+                return String(format: hours.truncatingRemainder(dividingBy: 1) == 0 ? "%.0fh" : "%.1fh", hours)
+            }
+            return "\(seconds / 60)m"
         default:
             let m = seconds / 60
+            if m >= 60 {
+                let hours = Double(m) / 60.0
+                return String(format: hours.truncatingRemainder(dividingBy: 1) == 0 ? "%.0fh" : "%.1fh", hours)
+            }
             let s = seconds % 60
             return s > 0 ? "\(m)m \(s)s" : "\(m)m"
         }

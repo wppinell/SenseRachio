@@ -1,10 +1,12 @@
 import SwiftUI
 import SwiftData
+import CoreLocation
 
 struct DashboardView: View {
     @EnvironmentObject private var appState: AppState
     @Environment(\.modelContext) private var modelContext
     @State private var viewModel = DashboardViewModel()
+    @State private var locationName: String? = nil
     @AppStorage(AppStorageKey.temperatureUnit) private var tempUnit = "celsius"
 
     @AppStorage(AppStorageKey.autoWaterThreshold) private var autoWaterThreshold: Double = 20
@@ -68,7 +70,7 @@ struct DashboardView: View {
                 }
             }
             .navigationTitle("🌱 RachioSense")
-            .navigationBarTitleDisplayMode(.large)
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 if viewModel.zones.count > 1 {
                     ToolbarItem(placement: .topBarTrailing) {
@@ -78,7 +80,10 @@ struct DashboardView: View {
             }
         }
         .task {
+            // Restore cached city name instantly
+            locationName = UserDefaults.standard.string(forKey: "cached_city_name")
             await viewModel.load(modelContext: modelContext)
+            await resolveLocationName()
         }
     }
 
@@ -284,16 +289,40 @@ struct DashboardView: View {
 
     private var weatherCard: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text("WEATHER")
-                .font(DS.Font.sectionHeader)
-                .foregroundStyle(DS.Color.textSecondary)
-                .tracking(0.8)
-                .padding(.horizontal, DS.Spacing.lg)
-                .padding(.top, DS.Spacing.xl)
-                .padding(.bottom, DS.Spacing.xs)
+            HStack {
+                Text("WEATHER")
+                    .font(DS.Font.sectionHeader)
+                    .foregroundStyle(DS.Color.textSecondary)
+                    .tracking(0.8)
+                Spacer()
+                if let name = locationName {
+                    HStack(spacing: 3) {
+                        Image(systemName: "location.fill")
+                            .font(.system(size: 9))
+                        Text(name)
+                            .font(DS.Font.footnote)
+                    }
+                    .foregroundStyle(DS.Color.textTertiary)
+                }
+            }
+            .padding(.horizontal, DS.Spacing.lg)
+            .padding(.top, DS.Spacing.xl)
+            .padding(.bottom, DS.Spacing.xs)
 
             WeatherForecastCard(forecast: viewModel.forecast, tempUnit: tempUnit)
                 .padding(.horizontal, DS.Spacing.lg)
+        }
+    }
+
+    private func resolveLocationName() async {
+        let location = await LocationManager.shared.getLocation()
+        let clLocation = CLLocation(latitude: location.latitude, longitude: location.longitude)
+        let geocoder = CLGeocoder()
+        if let placemark = try? await geocoder.reverseGeocodeLocation(clLocation).first {
+            let name = placemark.locality ?? placemark.administrativeArea ?? placemark.country
+            locationName = name
+            // Cache for instant display next launch
+            if let name { UserDefaults.standard.set(name, forKey: "cached_city_name") }
         }
     }
 }

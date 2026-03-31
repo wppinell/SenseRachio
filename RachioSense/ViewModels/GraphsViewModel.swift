@@ -1,6 +1,9 @@
 import Foundation
 import SwiftData
 import Observation
+import os
+
+private let logger = Logger(subsystem: "com.rachiosense", category: "GraphsViewModel")
 
 @Observable
 final class GraphsViewModel {
@@ -78,9 +81,24 @@ final class GraphsViewModel {
 
         zoneConfigs = (try? modelContext.fetch(FetchDescriptor<ZoneConfig>())) ?? []
 
+        // If no ZoneConfigs stored yet (Zones tab not visited), try to load from Rachio
+        if zoneConfigs.isEmpty, KeychainService.shared.load(forKey: KeychainKey.rachioAPIKey) != nil {
+            if let devices = try? await RachioAPI.shared.getDevices() {
+                let existingIds = Set(zoneConfigs.map { $0.id })
+                for device in devices {
+                    for zone in device.zones where zone.enabled && !existingIds.contains(zone.id) {
+                        modelContext.insert(ZoneConfig(id: zone.id, name: zone.name, deviceId: device.id))
+                    }
+                }
+                _ = try? modelContext.save()
+                zoneConfigs = (try? modelContext.fetch(FetchDescriptor<ZoneConfig>())) ?? []
+            }
+        }
+
         // Show whatever is already in SwiftData immediately
         reloadReadings(modelContext: modelContext)
         isLoading = false
+
 
         // Then fetch fresh data in background — update graphs when done
         isFetchingData = true
@@ -111,11 +129,11 @@ final class GraphsViewModel {
         for r in allReadings { grouped[r.eui, default: []].append(r) }
         readingsByEUI = grouped
         let summary = grouped.map { "\($0.key.suffix(4)):\($0.value.count)" }.joined(separator: ", ")
-        print("[GraphsVM] reloadReadings: \(allReadings.count) total readings across \(grouped.keys.count) EUIs — [\(summary)]")
+        logger.debug(" reloadReadings: \(allReadings.count) total readings across \(grouped.keys.count) EUIs — [\(summary)]")
         
         // Also log what sensors expect to show
         let visibleEUIs = sensors.filter { !$0.isHiddenFromGraphs }.map { $0.eui }
-        print("[GraphsVM] Visible sensor EUIs: \(visibleEUIs.map { String($0.suffix(4)) }.joined(separator: ", "))")
+        logger.debug(" Visible sensor EUIs: \(visibleEUIs.map { String($0.suffix(4)) }.joined(separator: ", "))")
     }
     
 

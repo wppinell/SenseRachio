@@ -1,4 +1,7 @@
 import Foundation
+import os
+
+private let logger = Logger(subsystem: "com.rachiosense", category: "RachioAPI")
 
 // MARK: - Rachio Domain Models
 
@@ -27,6 +30,11 @@ struct RachioScheduleRule: Codable, Identifiable {
     let enabled: Bool
     let startHour: Int?
     let startMinute: Int?
+    let nextRunDate: Int?           // epoch milliseconds — Rachio-computed next run (FLEX schedules)
+    let startDate: Int?             // epoch ms — FLEX schedule next run date
+    let startDay: Int?
+    let startMonth: Int?
+    let startYear: Int?
     let zones: [RachioScheduleZone]
     let summary: String?
     let daysOfWeek: [String]?       // Fixed schedules: ["MONDAY", "WEDNESDAY", ...]
@@ -81,6 +89,63 @@ extension RachioDevice {
             return (rule: rule, duration: sz.duration)
         }
     }
+
+    /// Compute next run Date for a zone using the same logic as ZoneCardView
+    func nextRunDate(forZone zone: RachioZone) -> Date? {
+        let entries = schedules(forZoneId: zone.id)
+        guard !entries.isEmpty else { return nil }
+        let now = Date()
+        let calendar = Calendar.current
+        var candidates: [Date] = []
+
+        for entry in entries {
+            let rule = entry.rule
+            let isFlex = rule.startHour == nil
+            var hour = rule.startHour ?? 12
+            var minute = rule.startMinute ?? 0
+
+            if isFlex, let lastMs = zone.lastWateredDate {
+                let lastRun = Date(timeIntervalSince1970: Double(lastMs) / 1000)
+                hour = calendar.component(.hour, from: lastRun)
+                minute = calendar.component(.minute, from: lastRun)
+            }
+
+            let types = rule.scheduleJobTypes ?? []
+            let fixedWeekdays = types.compactMap { t -> Int? in
+                guard t.hasPrefix("DAY_OF_WEEK_"), let n = Int(t.dropFirst("DAY_OF_WEEK_".count)) else { return nil }
+                return n + 1
+            }
+
+            if !fixedWeekdays.isEmpty {
+                for offset in 0..<8 {
+                    guard let candidate = calendar.date(byAdding: .day, value: offset, to: now) else { continue }
+                    let weekday = calendar.component(.weekday, from: candidate)
+                    guard fixedWeekdays.contains(weekday) else { continue }
+                    var comps = calendar.dateComponents([.year, .month, .day], from: candidate)
+                    comps.hour = hour; comps.minute = minute; comps.second = 0
+                    if let runDate = calendar.date(from: comps), runDate > now {
+                        candidates.append(runDate); break
+                    }
+                }
+            } else {
+                var intervalDays = 1
+                for t in types {
+                    if t.hasPrefix("INTERVAL_"), let n = Int(t.dropFirst("INTERVAL_".count)), n > 0 {
+                        intervalDays = n; break
+                    }
+                }
+                for offset in 0...intervalDays {
+                    guard let candidate = calendar.date(byAdding: .day, value: offset, to: now) else { continue }
+                    var comps = calendar.dateComponents([.year, .month, .day], from: candidate)
+                    comps.hour = hour; comps.minute = minute; comps.second = 0
+                    if let runDate = calendar.date(from: comps), runDate > now {
+                        candidates.append(runDate); break
+                    }
+                }
+            }
+        }
+        return candidates.min()
+    }
 }
 
 // MARK: - Rachio API Errors
@@ -123,7 +188,7 @@ final class RachioAPI {
     private var cacheTimestamp: Date? = nil
     private let cacheTTL: TimeInterval = 300 // 5 minutes
     private var activeFetchTask: Task<[RachioDevice], Error>? = nil
-    private let fetchLock = NSLock()
+    private let fetchLock = OSAllocatedUnfairLock()
     
     // Cache personId and deviceIds to avoid repeated calls
     private var cachedPersonId: String? = nil
@@ -184,9 +249,9 @@ final class RachioAPI {
         }
         
         if !info.isEmpty {
-            print("[RachioAPI] \(endpoint) rate headers: \(info.joined(separator: ", "))")
+            logger.debug(" \(endpoint) rate headers: \(info.joined(separator: ", "))")
         } else if response.statusCode == 429 {
-            print("[RachioAPI] \(endpoint) 429 - all headers: \(headers)")
+            logger.debug(" \(endpoint) 429 - all headers: \(headers)")
         }
         
         // Parse rate limit values (headers might have different casing)
@@ -204,7 +269,7 @@ final class RachioAPI {
                 if response.statusCode == 429 || rateLimitRemaining == 0 {
                     rateLimitedUntil = resetDate
                     let mins = Int(resetDate.timeIntervalSinceNow / 60)
-                    print("[RachioAPI] Rate limited until \(resetStr) (\(mins) min from now)")
+                    logger.debug(" Rate limited until \(resetStr) (\(mins) min from now)")
                 }
             }
         }
@@ -289,9 +354,7 @@ final class RachioAPI {
 
         do {
             let device = try JSONDecoder().decode(RachioDevice.self, from: data)
-            for rule in device.scheduleRules ?? [] {
-                print("[RachioAPI] schedule '\(rule.name)' types=\(rule.scheduleJobTypes ?? []) runsPerWeek=\(rule.runsPerWeekDouble)")
-            }
+
             return device
         } catch {
             throw RachioAPIError.decodingError(error)
@@ -308,7 +371,7 @@ final class RachioAPI {
         // If we're rate-limited, fail fast or return stale cache
         if let until = rateLimitedUntil, Date() < until {
             let waitSecs = Int(until.timeIntervalSince(Date()))
-            print("[RachioAPI] rate-limited, \(waitSecs)s remaining")
+            logger.debug(" rate-limited, \(waitSecs)s remaining")
             if let cached = cachedDevices {
                 return cached // return stale cache rather than error
             }
@@ -320,26 +383,24 @@ final class RachioAPI {
            let cached = cachedDevices,
            let ts = cacheTimestamp,
            Date().timeIntervalSince(ts) < cacheTTL {
-            print("[RachioAPI] returning cached devices (\(Int(Date().timeIntervalSince(ts)))s old)")
+            logger.debug(" returning cached devices (\(Int(Date().timeIntervalSince(ts)))s old)")
             return cached
         }
         
         // Thread-safe check for existing fetch task
-        fetchLock.lock()
-        if let existing = activeFetchTask {
-            fetchLock.unlock()
-            print("[RachioAPI] getDevices: fetch in progress, waiting for existing task...")
+        let existingTask: Task<[RachioDevice], Error>? = fetchLock.withLock { activeFetchTask }
+        if let existing = existingTask {
+            logger.debug(" getDevices: fetch in progress, waiting for existing task...")
             return try await existing.value
         }
         
-        print("[RachioAPI] getDevices: starting new fetch task")
-        // Start new fetch task while holding lock
-        let task = Task<[RachioDevice], Error> {
+        logger.debug(" getDevices: starting new fetch task")
+        // Start new fetch task
+        let task = Task<[RachioDevice], Error> { [weak self] in
+            guard let self else { throw RachioAPIError.invalidResponse }
             defer { 
-                fetchLock.lock()
-                activeFetchTask = nil 
-                fetchLock.unlock()
-                print("[RachioAPI] getDevices: fetch task completed, cleared activeFetchTask")
+                self.fetchLock.withLock { self.activeFetchTask = nil }
+                logger.debug(" getDevices: fetch task completed, cleared activeFetchTask")
             }
             do {
                 let result = try await fetchDevicesFromAPI()
@@ -347,23 +408,22 @@ final class RachioAPI {
                 return result
             } catch RachioAPIError.httpError(429) {
                 // Only use fallback if header didn't set a reset time
-                print("[RachioAPI] got 429, rateLimitedUntil=\(String(describing: rateLimitedUntil))")
+                logger.debug(" got 429, rateLimitedUntil=\(String(describing: rateLimitedUntil))")
                 if rateLimitedUntil == nil || rateLimitedUntil! < Date() {
-                    print("[RachioAPI] no valid reset time from header, backing off for 5 min")
+                    logger.debug(" no valid reset time from header, backing off for 5 min")
                     rateLimitedUntil = Date().addingTimeInterval(rateLimitBackoff)
                 }
                 throw RachioAPIError.httpError(429)
             }
         }
-        activeFetchTask = task
-        fetchLock.unlock()
+        fetchLock.withLock { activeFetchTask = task }
         
         return try await task.value
     }
     
     private func fetchDevicesFromAPI() async throws -> [RachioDevice] {
         let personId = try await getPersonId()
-        print("[RachioAPI] personId: \(personId)")
+        logger.debug(" personId: \(personId)")
 
         // Use in-memory cache, then try API, then Keychain fallback
         let deviceIds: [String]
@@ -381,12 +441,12 @@ final class RachioAPI {
         } else {
             throw RachioAPIError.apiError("Could not discover Rachio devices. Try saving your API key and testing the connection again.")
         }
-        print("[RachioAPI] deviceIds: \(deviceIds)")
+        logger.debug(" deviceIds: \(deviceIds)")
 
         var devices: [RachioDevice] = []
         for id in deviceIds {
             let device = try await fetchDevice(id: id)
-            print("[RachioAPI] fetched device: \(device.name), \(device.scheduleRules?.count ?? 0) schedules")
+            logger.debug(" fetched device: \(device.name), \(device.scheduleRules?.count ?? 0) schedules")
             devices.append(device)
         }
         

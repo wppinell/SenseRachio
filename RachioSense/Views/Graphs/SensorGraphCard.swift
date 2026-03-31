@@ -4,8 +4,8 @@ import Charts
 struct SensorGraphCard: View {
     let title: String
     let sensors: [SensorConfig]
-    let readingsFor: (String, String) -> [(Date, Double)]
-    @Binding var chartPeriod: String          // shared — double-tap syncs here
+    let readingsByEUI: [String: [SensorReading]]   // direct data — SwiftUI observes changes
+    @Binding var chartPeriod: String
     var showPeriodPicker: Bool = true
     var isFetching: Bool = false
     @AppStorage(AppStorageKey.graphYMin) private var graphYMin = 15.0
@@ -41,11 +41,30 @@ struct SensorGraphCard: View {
         let colorIndex: Int
     }
 
+    private func readings(for eui: String) -> [(Date, Double)] {
+        let cutoff = cutoffDate(for: localPeriod)
+        return (readingsByEUI[eui] ?? [])
+            .filter { $0.recordedAt >= cutoff && $0.moisture >= 0 && $0.moisture <= 100 }
+            .map { ($0.recordedAt, $0.moisture) }
+            .sorted { $0.0 < $1.0 }
+    }
+
     private var allPoints: [DataPoint] {
         sensors.enumerated().flatMap { index, sensor in
-            readingsFor(sensor.eui, localPeriod).map { date, moisture in
+            readings(for: sensor.eui).map { date, moisture in
                 DataPoint(date: date, moisture: moisture, sensorName: sensor.displayName, colorIndex: index)
             }
+        }
+    }
+
+    private func cutoffDate(for period: String) -> Date {
+        switch period {
+        case "1d": return Date().addingTimeInterval(-1 * 86400)
+        case "2d": return Date().addingTimeInterval(-2 * 86400)
+        case "4d": return Date().addingTimeInterval(-4 * 86400)
+        case "5d": return Date().addingTimeInterval(-5 * 86400)
+        case "1w": return Date().addingTimeInterval(-7 * 86400)
+        default:   return Date().addingTimeInterval(-86400)
         }
     }
 
@@ -73,9 +92,20 @@ struct SensorGraphCard: View {
     }
 
     /// Evenly spaced Y axis ticks within the configured range
+    private var yRange: (min: Double, max: Double) {
+        let moistures = allPoints.map(\.moisture)
+        guard !moistures.isEmpty else { return (graphYMin, graphYMax) }
+        let dataMin = (moistures.min() ?? graphYMin)
+        let dataMax = (moistures.max() ?? graphYMax)
+        // Always show all data — expand beyond configured range if needed, never clip
+        let low  = (min(graphYMin, dataMin) - 3).rounded(.down)
+        let high = (max(graphYMax, dataMax) + 3).rounded(.up)
+        return (low, high)
+    }
+
     private var yAxisValues: [Double] {
-        let min = graphYMin
-        let max = graphYMax
+        let min = yRange.min
+        let max = yRange.max
         let range = max - min
         let step = range <= 20 ? 5.0 : range <= 40 ? 10.0 : 15.0
         var values: [Double] = []
@@ -88,12 +118,11 @@ struct SensorGraphCard: View {
     }
 
     private var hasData: Bool {
-        sensors.contains { readingsFor($0.eui, localPeriod).count >= 2 }
+        sensors.contains { readings(for: $0.eui).count >= 2 }
     }
 
     private var isWaitingForData: Bool {
-        // No data at all for the current period
-        !sensors.isEmpty && sensors.allSatisfy { readingsFor($0.eui, localPeriod).isEmpty }
+        !sensors.isEmpty && sensors.allSatisfy { readings(for: $0.eui).isEmpty }
     }
 
     var body: some View {
@@ -187,7 +216,7 @@ struct SensorGraphCard: View {
                     series: .value("Sensor", point.sensorName)
                 )
                 .foregroundStyle(color(for: point.colorIndex))
-                .interpolationMethod(.catmullRom)
+                .interpolationMethod(.linear)
             }
 
             // Auto-water threshold — red
@@ -211,7 +240,7 @@ struct SensorGraphCard: View {
                 AxisGridLine()
             }
         }
-        .chartYScale(domain: graphYMin...graphYMax)
+        .chartYScale(domain: yRange.min...yRange.max)
         .chartYAxis {
             AxisMarks(values: yAxisValues) { value in
                 AxisValueLabel {
@@ -278,11 +307,6 @@ struct SensorGraphCard: View {
             Text("No data for \(localPeriod)")
                 .font(DS.Font.caption)
                 .foregroundStyle(DS.Color.textSecondary)
-                .multilineTextAlignment(.center)
-            Text("card EUIs: \(sensors.map{$0.eui.suffix(4)}.joined(separator:","))")
-            Text("pts: \(allPoints.count) · readings: \(sensors.map{ s in String(readingsFor(s.eui, localPeriod).count) }.joined(separator:","))")
-                .font(DS.Font.footnote)
-                .foregroundStyle(DS.Color.textTertiary)
                 .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity, minHeight: 80)

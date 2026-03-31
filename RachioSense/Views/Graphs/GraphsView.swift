@@ -23,7 +23,7 @@ struct GraphsView: View {
                 }
             }
             .navigationTitle("Graphs")
-            .navigationBarTitleDisplayMode(.large)
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     if viewModel.isLoading {
@@ -61,10 +61,8 @@ struct GraphsView: View {
                             SensorGraphCard(
                                 title: zone.name,
                                 sensors: viewModel.sensors(linkedTo: zone.id),
-                                readingsFor: { eui, period in
-                                    viewModel.readings(for: eui, period: period)
-                                },
-                                chartPeriod: $chartPeriod,
+                                readingsByEUI: viewModel.readingsByEUI,
+                                                                chartPeriod: $chartPeriod,
                                 isFetching: viewModel.isFetchingData
                             )
                         }
@@ -72,10 +70,8 @@ struct GraphsView: View {
                             SensorGraphCard(
                                 title: "Unlinked Sensors",
                                 sensors: viewModel.unlinkedSensors,
-                                readingsFor: { eui, period in
-                                    viewModel.readings(for: eui, period: period)
-                                },
-                                chartPeriod: $chartPeriod,
+                                readingsByEUI: viewModel.readingsByEUI,
+                                                                chartPeriod: $chartPeriod,
                                 isFetching: viewModel.isFetchingData
                             )
                         }
@@ -87,10 +83,8 @@ struct GraphsView: View {
                                 SensorGraphCard(
                                     title: group.name,
                                     sensors: groupSensors,
-                                    readingsFor: { eui, period in
-                                        viewModel.readings(for: eui, period: period)
-                                    },
-                                    chartPeriod: $chartPeriod,
+                                    readingsByEUI: viewModel.readingsByEUI,
+                                                                        chartPeriod: $chartPeriod,
                                 isFetching: viewModel.isFetchingData
                                 )
                             }
@@ -100,10 +94,8 @@ struct GraphsView: View {
                             SensorGraphCard(
                                 title: zone.name,
                                 sensors: viewModel.sensors(linkedTo: zone.id),
-                                readingsFor: { eui, period in
-                                    viewModel.readings(for: eui, period: period)
-                                },
-                                chartPeriod: $chartPeriod,
+                                readingsByEUI: viewModel.readingsByEUI,
+                                                                chartPeriod: $chartPeriod,
                                 isFetching: viewModel.isFetchingData
                             )
                         }
@@ -111,10 +103,8 @@ struct GraphsView: View {
                             SensorGraphCard(
                                 title: "Unlinked Sensors",
                                 sensors: viewModel.unlinkedSensors,
-                                readingsFor: { eui, period in
-                                    viewModel.readings(for: eui, period: period)
-                                },
-                                chartPeriod: $chartPeriod,
+                                readingsByEUI: viewModel.readingsByEUI,
+                                                                chartPeriod: $chartPeriod,
                                 isFetching: viewModel.isFetchingData
                             )
                         }

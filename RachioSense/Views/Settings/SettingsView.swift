@@ -15,7 +15,7 @@ struct SettingsView: View {
             NavigationStack {
                 settingsList
                     .navigationTitle("Settings")
-                    .navigationBarTitleDisplayMode(.large)
+                    .navigationBarTitleDisplayMode(.inline)
             }
         }
     }

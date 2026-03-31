@@ -6,23 +6,21 @@ This file captures architectural suggestions and feature ideas specific to the c
 
 ## 🔴 High Priority — Bugs & Technical Debt
 
-### Fix Duplicate API Calls on Load
-**File:** `SensorsViewModel.swift`, `DashboardViewModel.swift`  
-Both ViewModels independently fetch live SenseCAP readings on load, burning rate-limited calls unnecessarily.  
-**Fix:** Introduce a shared `LiveReadingsCache` (actor or `@Observable` singleton) that both ViewModels subscribe to. One fetch, one source of truth.
+### ✅ Fix Duplicate API Calls on Load — COMPLETED
+**File:** `Services/LiveReadingsCache.swift` (NEW)  
+Both ViewModels now use a shared `LiveReadingsCache` actor that coalesces sensor reading fetches. One fetch, one source of truth with 60-second TTL.
 
-### Fix SwiftData Threading
-**File:** `BackgroundRefreshManager.swift`  
-`ModelContext` is being used off the main queue. This is a known crash risk in Swift 6.  
-**Fix:** Convert to `ModelActor` for background context access.
+### ✅ Fix SwiftData Threading — COMPLETED
+**File:** `Background/BackgroundRefreshManager.swift`  
+Converted to use `@ModelActor` (`BackgroundModelActor`) for thread-safe SwiftData access in background tasks. No more `ModelContext` used off the main queue.
 
-### Fix Hardcoded Phoenix Weather Location
-**File:** `WeatherAPI.swift`  
-Coordinates are hardcoded at `33.4484, -112.0740`.  
-**Fix:** Use `CoreLocation` with a `CLLocationManager`. Fall back to a user-set location in Settings if location permission is denied. This also unblocks rain/freeze skip features from being meaningful.
+### ✅ Fix Hardcoded Phoenix Weather Location — COMPLETED
+**Files:** `Services/LocationManager.swift` (NEW), `ViewModels/DashboardViewModel.swift`, `Info.plist`  
+Now uses `CoreLocation` via `LocationManager.shared.getLocation()`. Falls back to user-configured location in Settings if permission denied, then to Phoenix as last resort. Added `NSLocationWhenInUseUsageDescription` to Info.plist.
 
-### Remove Debug Print Statements
-`[RachioAPI]`, `[Prefetch]`, etc. should be gated behind a `DEBUG` flag or replaced with `os.Logger` for production builds.
+### ✅ Remove Debug Print Statements — COMPLETED
+**Files:** `RachioAPI.swift`, `GraphDataPrefetcher.swift`, `GraphsViewModel.swift`, `DashboardViewModel.swift`, `SensorsViewModel.swift`, `BackgroundRefreshManager.swift`, `LiveReadingsCache.swift`  
+Replaced all `print("[RachioAPI]")`, `print("[Prefetch]")`, etc. with `os.Logger` for proper production logging.
 
 ---
 
@@ -82,9 +80,9 @@ The `moistureThreshold` field is kept for DB compatibility but is unused — glo
 
 ## 🟢 Feature Additions — Rachio Standalone Quality
 
-### Next Scheduled Run on Dashboard and Zone Rows
-**Endpoint:** Schedule data is already fetched via `GET /device/{id}`  
-Calculate and display "Next run: Tomorrow 6:00 AM" per zone using the schedule's `startTime` and `days` arrays. For Flex Daily, use `nextRunDate` from the zone object if available.
+### ✅ Next Scheduled Run on Dashboard and Zone Rows — COMPLETED
+**File:** `Views/Zones/ZoneCardView.swift`  
+Zone cards now display "Next run: 6:00 PM" per zone using the schedule's `startHour`/`startMinute`. For Flex Daily schedules, estimates time based on `lastWateredDate` since Rachio doesn't expose computed FLEX times via public API.
 
 ### Implement Auto-Water Execution
 **Current state:** Auto-water is a setting but doesn't trigger Rachio.  
@@ -168,10 +166,10 @@ Expose Rachio zones as `HMService` irrigation accessories via a local HomeKit br
 
 ## Notes on App Store Readiness
 Before submission:
-- [ ] Replace hardcoded Phoenix coordinates with CoreLocation
-- [ ] Remove or gate all debug print statements
-- [ ] Fix SwiftData threading (ModelActor)
-- [ ] Add privacy usage strings for CoreLocation in Info.plist
+- [x] Replace hardcoded Phoenix coordinates with CoreLocation
+- [x] Remove or gate all debug print statements
+- [x] Fix SwiftData threading (ModelActor)
+- [x] Add privacy usage strings for CoreLocation in Info.plist
 - [ ] Test on physical device (SenseCAP WebSocket + background refresh)
 - [ ] Add onboarding flow for first launch (no credentials state)
 - [ ] Verify Keychain entries are properly scoped with `kSecAttrAccessibleWhenUnlockedThisDeviceOnly`

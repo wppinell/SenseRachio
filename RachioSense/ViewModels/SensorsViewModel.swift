@@ -1,9 +1,12 @@
 import Foundation
 import SwiftData
 import Observation
+import os
 
 @Observable
 final class SensorsViewModel {
+    private static let logger = Logger(subsystem: "com.rachiosense", category: "SensorsViewModel")
+    
     var sensors: [SensorConfig] = []
     var readings: [String: SensorReading] = [:]
     var isLoading: Bool = false
@@ -47,7 +50,6 @@ final class SensorsViewModel {
 
             // Load existing latest readings from SwiftData as fallback
             let allStored = (try? modelContext.fetch(FetchDescriptor<SensorReading>())) ?? []
-            // For each EUI, find the most recent stored reading
             var storedLatest: [String: SensorReading] = [:]
             for r in allStored {
                 if let existing = storedLatest[r.eui] {
@@ -57,55 +59,22 @@ final class SensorsViewModel {
                 }
             }
 
-            // Fetch latest readings concurrently (as plain data, not SwiftData models)
-            struct ReadingData: Sendable {
-                let eui: String
-                let moisture: Double
-                let tempC: Double
-            }
+            // Use shared cache to prevent duplicate API calls
+            let hiddenEuis = Set(updatedConfigs.filter { $0.isHiddenFromGraphs }.map { $0.eui })
+        let cachedReadings = await LiveReadingsCache.shared.getReadings(hiddenEuis: hiddenEuis)
             
-            // Get disabled sensor EUIs to skip
-            let disabledEuis = Set(updatedConfigs.filter { $0.isHiddenFromGraphs }.map { $0.eui })
+            // Merge: use cached/fresh reading if available, fall back to stored
+            var newReadings: [String: SensorReading] = storedLatest
             
-            let fetchedReadings: [ReadingData] = await withTaskGroup(of: ReadingData?.self) { group in
-                for device in devices {
-                    if disabledEuis.contains(device.deviceEui) { continue }
-                    group.addTask {
-                        do {
-                            let r = try await SenseCraftAPI.shared.fetchReading(eui: device.deviceEui)
-                            // Only return if we got real data
-                            guard let moisture = r.moisture else { return nil }
-                            return ReadingData(eui: device.deviceEui, moisture: moisture, tempC: r.tempC ?? 0)
-                        } catch {
-                            return nil  // Failed — will fall back to stored reading
-                        }
-                    }
-                }
-                var results: [ReadingData] = []
-                for await data in group {
-                    if let data = data { results.append(data) }
-                }
-                return results
-            }
-            
-            // Merge: use fresh reading if available, fall back to last stored reading
-            var newReadings: [String: SensorReading] = [:]
-            
-            // First seed with stored readings as fallback
-            for (eui, stored) in storedLatest {
-                newReadings[eui] = stored
-            }
-            
-            // Override with fresh readings where we got them
-            for data in fetchedReadings {
-                let reading = SensorReading(
-                    eui: data.eui,
-                    moisture: data.moisture,
-                    tempC: data.tempC,
-                    recordedAt: Date()
-                )
-                modelContext.insert(reading)
-                newReadings[data.eui] = reading
+            for (eui, reading) in cachedReadings {
+                // Also persist to SwiftData
+                modelContext.insert(SensorReading(
+                    eui: reading.eui,
+                    moisture: reading.moisture,
+                    tempC: reading.tempC,
+                    recordedAt: reading.recordedAt
+                ))
+                newReadings[eui] = reading
             }
             _ = try? modelContext.save()
             
@@ -123,6 +92,7 @@ final class SensorsViewModel {
             self.readings = newReadings
             self.isLoading = false
         } catch {
+            Self.logger.error("Failed to load sensors: \(error.localizedDescription)")
             self.errorMessage = error.localizedDescription
             self.isLoading = false
         }

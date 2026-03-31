@@ -57,5 +57,7 @@
 	</dict>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>RachioSense uses your location to fetch accurate local weather forecasts for rain skip and freeze skip features.</string>
 </dict>
 </plist>

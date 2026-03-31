@@ -108,24 +108,6 @@ struct SensorRowView: View {
                 }
 
                 Spacer()
-
-                // Moisture value
-                VStack(alignment: .trailing, spacing: 2) {
-                    if hasReading {
-                        Text("\(Int(moisture))%")
-                            .font(DS.Font.statSmall)
-                            .foregroundStyle(moistureColor)
-                    } else {
-                        Text("—")
-                            .font(DS.Font.statSmall)
-                            .foregroundStyle(DS.Color.textTertiary)
-                    }
-                    if let temp = tempDisplay, secondaryLabel == "moistureTemp" {
-                        Text(temp)
-                            .font(DS.Font.caption)
-                            .foregroundStyle(DS.Color.textSecondary)
-                    }
-                }
             }
 
             // Moisture bar
@@ -133,8 +115,8 @@ struct SensorRowView: View {
                 DSMoistureBar(value: moisture)
             }
 
-            // Status indicator — show for critical, dry, or high
-            if hasReading {
+            // Status indicator — show for critical, dry, or high (not for disabled sensors)
+            if hasReading && !isDisabled {
                 let isCritical = moisture < autoWaterThreshold
                 let isDry = moisture < dryThreshold
                 let isHigh = moisture >= highThreshold

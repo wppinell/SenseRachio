@@ -58,7 +58,13 @@ struct SensorsView: View {
             }
         }
 
-        return result
+        // Always sort disabled sensors to bottom
+        return result.sorted { a, b in
+            if a.isHiddenFromGraphs != b.isHiddenFromGraphs {
+                return !a.isHiddenFromGraphs
+            }
+            return false
+        }
     }
 
     var body: some View {
@@ -75,7 +81,7 @@ struct SensorsView: View {
                 }
             }
             .navigationTitle("Sensors")
-            .navigationBarTitleDisplayMode(.large)
+            .navigationBarTitleDisplayMode(.inline)
         }
         .task {
             await viewModel.loadSensors(modelContext: modelContext)

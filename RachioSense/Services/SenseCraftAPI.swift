@@ -211,11 +211,23 @@ final class SenseCraftAPI {
             let chunks = Int(ceil(Double(hours) / Double(chunkHours)))
             let nowMs = Int(Date().timeIntervalSince1970 * 1000)
 
+            // Fetch chunks sequentially with aggressive retry
             for i in 0..<chunks {
+                if i > 0 { try? await Task.sleep(nanoseconds: 1_000_000_000) } // 1s between chunks
                 let chunkEndMs   = nowMs - (i * chunkHours * 3600 * 1000)
                 let chunkStartMs = chunkEndMs - (chunkHours * 3600 * 1000)
-                let chunk = try await fetchHistoryChunk(eui: eui, startMs: chunkStartMs, endMs: chunkEndMs)
-                print("[SenseCraft] \(eui.suffix(4)) chunk \(i+1)/\(chunks): \(chunk.count) readings")
+                var chunk: [HistoricalReading] = []
+                for attempt in 1...5 {
+                    do {
+                        chunk = try await fetchHistoryChunk(eui: eui, startMs: chunkStartMs, endMs: chunkEndMs)
+                        break
+                    } catch SenseCraftAPIError.httpError(429) {
+                        let wait: UInt64 = UInt64(attempt) * 10_000_000_000
+                        try? await Task.sleep(nanoseconds: wait)
+                    } catch {
+                        break
+                    }
+                }
                 allReadings.append(contentsOf: chunk)
             }
 

@@ -13,6 +13,10 @@
 		A100000000000000000000217 /* APIModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000216 /* APIModels.swift */; };
 		A100000000000000000000219 /* KeychainService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000218 /* KeychainService.swift */; };
 		A10000000000000000000021B /* SenseCraftAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000021A /* SenseCraftAPI.swift */; };
+		A100000000000000000000500 /* LiveReadingsCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000501 /* LiveReadingsCache.swift */; };
+		A100000000000000000000502 /* LocationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000503 /* LocationManager.swift */; };
+		A100000000000000000000504 /* ImageCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000505 /* ImageCache.swift */; };
+		A100000000000000000000506 /* CachedZoneImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000507 /* CachedZoneImage.swift */; };
 		A100000000000000000000400 /* WeatherAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000401 /* WeatherAPI.swift */; };
 		A1000000000000000000002F1 /* GraphDataPrefetcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000002F0 /* GraphDataPrefetcher.swift */; };
 		A10000000000000000000021D /* RachioAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000021C /* RachioAPI.swift */; };
@@ -27,6 +31,7 @@
 		A10000000000000000000022F /* SensorRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000022E /* SensorRowView.swift */; };
 		A100000000000000000000231 /* ZonesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000230 /* ZonesView.swift */; };
 		A100000000000000000000233 /* ZoneRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000232 /* ZoneRowView.swift */; };
+		A100000000000000000000290 /* ZoneCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000291 /* ZoneCardView.swift */; };
 		A100000000000000000000235 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000234 /* SettingsView.swift */; };
 		A100000000000000000000239 /* BackgroundRefreshManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000238 /* BackgroundRefreshManager.swift */; };
 		A10000000000000000000023B /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000023A /* Assets.xcassets */; };
@@ -67,6 +72,10 @@
 		A100000000000000000000216 /* APIModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIModels.swift; sourceTree = "<group>"; };
 		A100000000000000000000218 /* KeychainService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainService.swift; sourceTree = "<group>"; };
 		A10000000000000000000021A /* SenseCraftAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SenseCraftAPI.swift; sourceTree = "<group>"; };
+		A100000000000000000000501 /* LiveReadingsCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveReadingsCache.swift; sourceTree = "<group>"; };
+		A100000000000000000000503 /* LocationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationManager.swift; sourceTree = "<group>"; };
+		A100000000000000000000505 /* ImageCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageCache.swift; sourceTree = "<group>"; };
+		A100000000000000000000507 /* CachedZoneImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CachedZoneImage.swift; sourceTree = "<group>"; };
 		A100000000000000000000401 /* WeatherAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeatherAPI.swift; sourceTree = "<group>"; };
 		A1000000000000000000002F0 /* GraphDataPrefetcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GraphDataPrefetcher.swift; sourceTree = "<group>"; };
 		A10000000000000000000021C /* RachioAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RachioAPI.swift; sourceTree = "<group>"; };
@@ -81,6 +90,7 @@
 		A10000000000000000000022E /* SensorRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SensorRowView.swift; sourceTree = "<group>"; };
 		A100000000000000000000230 /* ZonesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZonesView.swift; sourceTree = "<group>"; };
 		A100000000000000000000232 /* ZoneRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZoneRowView.swift; sourceTree = "<group>"; };
+		A100000000000000000000291 /* ZoneCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZoneCardView.swift; sourceTree = "<group>"; };
 		A100000000000000000000234 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		A100000000000000000000238 /* BackgroundRefreshManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundRefreshManager.swift; sourceTree = "<group>"; };
 		A10000000000000000000023A /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -176,6 +186,9 @@
 			children = (
 				A100000000000000000000218 /* KeychainService.swift */,
 				A10000000000000000000021A /* SenseCraftAPI.swift */,
+				A100000000000000000000501 /* LiveReadingsCache.swift */,
+				A100000000000000000000503 /* LocationManager.swift */,
+				A100000000000000000000505 /* ImageCache.swift */,
 				A100000000000000000000401 /* WeatherAPI.swift */,
 				A10000000000000000000021C /* RachioAPI.swift */,
 				A1000000000000000000002F0 /* GraphDataPrefetcher.swift */,
@@ -232,6 +245,8 @@
 			children = (
 				A100000000000000000000230 /* ZonesView.swift */,
 				A100000000000000000000232 /* ZoneRowView.swift */,
+				A100000000000000000000291 /* ZoneCardView.swift */,
+				A100000000000000000000507 /* CachedZoneImage.swift */,
 				A10000000000000000000283 /* ZoneDetailView.swift */,
 			);
 			path = Zones;
@@ -407,6 +422,10 @@
 				A100000000000000000000217 /* APIModels.swift in Sources */,
 				A100000000000000000000219 /* KeychainService.swift in Sources */,
 				A10000000000000000000021B /* SenseCraftAPI.swift in Sources */,
+				A100000000000000000000500 /* LiveReadingsCache.swift in Sources */,
+				A100000000000000000000502 /* LocationManager.swift in Sources */,
+				A100000000000000000000504 /* ImageCache.swift in Sources */,
+				A100000000000000000000506 /* CachedZoneImage.swift in Sources */,
 				A100000000000000000000400 /* WeatherAPI.swift in Sources */,
 				A10000000000000000000021D /* RachioAPI.swift in Sources */,
 				A1000000000000000000002F1 /* GraphDataPrefetcher.swift in Sources */,
@@ -448,6 +467,7 @@
 				A1000000000000000000027B /* ResetView.swift in Sources */,
 				A10000000000000000000282 /* SensorDetailView.swift in Sources */,
 				A10000000000000000000284 /* ZoneDetailView.swift in Sources */,
+				A100000000000000000000290 /* ZoneCardView.swift in Sources */,
 				A10000000000000000000287 /* GraphsView.swift in Sources */,
 				A1000000000000000000028B /* SensorGraphCard.swift in Sources */,
 				A1000000000000000000028D /* GraphsViewModel.swift in Sources */,
