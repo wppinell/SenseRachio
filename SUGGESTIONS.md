@@ -6,6 +6,29 @@ This file captures architectural suggestions and feature ideas specific to the c
 
 ## 🔴 High Priority — Bugs & Technical Debt
 
+### ✅ Graphs: Complete 7-Day History with Per-Sensor Coverage — COMPLETED
+**Files:** `Services/GraphDataPrefetcher.swift`, `Services/SenseCraftAPI.swift`, `Views/Graphs/SensorGraphCard.swift`, `Views/Graphs/GraphsView.swift`
+- Coverage check is now per-sensor: detects any sensor missing 7-day history and triggers full re-fetch
+- Sequential chunk fetching (1s delay, up to 5 retries) eliminates silent 429 failures
+- `SensorGraphCard` receives `readingsByEUI: [String: [SensorReading]]` directly — SwiftUI now reactively updates charts as data arrives
+- Bad readings (moisture outside 0–100%) filtered and purged from SwiftData
+- Linear interpolation replaces catmullRom to avoid overshoot on watering spikes
+- Y-axis auto-scales to fit all sensor data; never clips lines
+
+### ✅ Zones: Sort Tiles — COMPLETED
+**File:** `Views/Zones/ZonesView.swift`, `Services/RachioAPI.swift`
+Sort picker (↑↓) in Zones toolbar, persisted via `AppStorage`. Options:
+- **Moisture** (default) — driest zones first
+- **Name** — A→Z
+- **Next Run** — soonest first, using same schedule logic as zone card display
+- **Last Watered** — most recently watered first
+- **Weekly Watering** — most total weekly minutes first
+`nextRunDate(forZone:)` helper added to `RachioDevice` extension for shared use.
+
+### ✅ Sensors: Hide "Critical" Badge on Disabled Sensors — COMPLETED
+**File:** `Views/Sensors/SensorRowView.swift`
+Disabled (hidden-from-graphs) sensors no longer show Critical/Dry/High status badges, which was misleading since they're inactive.
+
 ### ✅ Fix Duplicate API Calls on Load — COMPLETED
 **File:** `Services/LiveReadingsCache.swift` (NEW)  
 Both ViewModels now use a shared `LiveReadingsCache` actor that coalesces sensor reading fetches. One fetch, one source of truth with 60-second TTL.
