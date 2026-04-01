@@ -8,13 +8,25 @@ struct GraphsView: View {
     @State private var viewModel = GraphsViewModel()
     @State private var syncFlash: Bool = false
 
-    private func events(forZoneId zoneId: String) -> [RachioWateringEvent] {
-        viewModel.wateringEvents.filter { $0.zoneId == zoneId }
+    private func events(forZoneName zoneName: String) -> [RachioWateringEvent] {
+        viewModel.wateringEvents.filter {
+            $0.zoneName.localizedCaseInsensitiveContains(zoneName) ||
+            zoneName.localizedCaseInsensitiveContains($0.zoneName)
+        }
     }
 
     private func events(forSensors sensors: [SensorConfig]) -> [RachioWateringEvent] {
-        let zoneIds = Set(sensors.compactMap { $0.linkedZoneId })
-        return viewModel.wateringEvents.filter { zoneIds.contains($0.zoneId) }
+        // For multi-sensor cards, union events from all linked zone names
+        let zoneNames = Set(sensors.compactMap { sensor -> String? in
+            guard let zoneId = sensor.linkedZoneId else { return nil }
+            return viewModel.zoneConfigs.first(where: { $0.id == zoneId })?.name
+        })
+        return viewModel.wateringEvents.filter { event in
+            zoneNames.contains(where: {
+                event.zoneName.localizedCaseInsensitiveContains($0) ||
+                $0.localizedCaseInsensitiveContains(event.zoneName)
+            })
+        }
     }
 
     var body: some View {
@@ -46,7 +58,10 @@ struct GraphsView: View {
                 let vm = viewModel
                 Task.detached(priority: .userInitiated) { await vm.load(modelContext: mc) }
             }
-            .refreshable { await viewModel.forceRefresh(modelContext: modelContext) }
+            .refreshable {
+                guard !viewModel.isFetchingData else { return }
+                await viewModel.forceRefresh(modelContext: modelContext)
+            }
             // Removed: onChange of chartPeriod was triggering duplicate fetches
             // Users can pull-to-refresh manually if needed after changing period
         }
@@ -76,7 +91,7 @@ struct GraphsView: View {
                                 title: zone.name,
                                 sensors: viewModel.sensors(linkedTo: zone.id),
                                 readingsByEUI: viewModel.readingsByEUI,
-                                wateringEvents: events(forZoneId: zone.id),
+                                wateringEvents: events(forZoneName: zone.name),
                                                                 chartPeriod: $chartPeriod,
                                 isFetching: viewModel.isFetchingData,
                                 syncFlash: $syncFlash
@@ -115,7 +130,7 @@ struct GraphsView: View {
                                 title: zone.name,
                                 sensors: viewModel.sensors(linkedTo: zone.id),
                                 readingsByEUI: viewModel.readingsByEUI,
-                                wateringEvents: events(forZoneId: zone.id),
+                                wateringEvents: events(forZoneName: zone.name),
                                                                 chartPeriod: $chartPeriod,
                                 isFetching: viewModel.isFetchingData,
                                 syncFlash: $syncFlash

@@ -74,7 +74,10 @@ struct RachioWateringEvent: Identifiable {
     let zoneId: String
     let zoneName: String
     let startDate: Date
-    let duration: Int  // seconds
+    let endDate: Date?   // nil if only start event found
+    let duration: Int    // seconds
+
+    var isLongEnough: Bool { duration >= 300 } // 5 min minimum for fill
 }
 
 struct RachioScheduleZone: Codable {
@@ -520,22 +523,73 @@ final class RachioAPI {
         }
 
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+            // Log raw response to diagnose field names
+            logger.warning("Watering events: unexpected response format: \(String(data: data, encoding: .utf8)?.prefix(500) ?? "nil")")
             return []
         }
 
-        let events: [RachioWateringEvent] = json.compactMap { dict in
+        // Separate started vs completed events
+        struct RawEvent {
+            let id: String; let zoneName: String; let date: Date; let subType: String
+        }
+        let rawEvents: [RawEvent] = json.compactMap { dict in
             guard let type = dict["type"] as? String, type == "ZONE_STATUS",
-                  let subType = dict["subType"] as? String, subType == "ZONE_STARTED",
+                  let subType = dict["subType"] as? String,
+                  (subType == "ZONE_STARTED" || subType == "ZONE_COMPLETED"),
                   let eventDateMs = dict["eventDate"] as? Int,
-                  let zoneId = dict["zoneId"] as? String,
-                  let zoneName = dict["zoneName"] as? String,
-                  let duration = dict["duration"] as? Int,
                   let id = dict["id"] as? String else { return nil }
-            let startDate = Date(timeIntervalSince1970: Double(eventDateMs) / 1000)
-            return RachioWateringEvent(id: id, zoneId: zoneId, zoneName: zoneName, startDate: startDate, duration: duration)
+            let summary = dict["summary"] as? String ?? ""
+            // Summary format: "Zone Name began/started/completed watering at..."
+            let separators = [" began ", " started ", " completed ", " finished "]
+            let zoneName = separators
+                .compactMap { sep -> String? in
+                    let parts = summary.components(separatedBy: sep)
+                    return parts.count > 1 ? parts[0] : nil
+                }
+                .first?
+                .trimmingCharacters(in: .whitespaces) ?? summary
+            return RawEvent(id: id, zoneName: zoneName,
+                            date: Date(timeIntervalSince1970: Double(eventDateMs) / 1000),
+                            subType: subType)
         }
 
-        cachedEvents = events
+        // ZONE_STARTED = "began watering", ZONE_COMPLETED = "completed watering"
+        let started   = rawEvents.filter { $0.subType == "ZONE_STARTED" }
+        let completed = rawEvents.filter { $0.subType == "ZONE_COMPLETED" }
+        logger.info("Parsed \(started.count) ZONE_STARTED, \(completed.count) ZONE_COMPLETED events")
+
+        // Build events from STARTED, match with nearest COMPLETED for the same zone
+        var events: [RachioWateringEvent] = started.map { s in
+            let match = completed.filter { $0.zoneName == s.zoneName && $0.date > s.date }
+                                 .min(by: { $0.date < $1.date })
+            let duration = match.map { Int($0.date.timeIntervalSince(s.date)) } ?? 0
+            return RachioWateringEvent(id: s.id, zoneId: "", zoneName: s.zoneName,
+                                      startDate: s.date, endDate: match?.date, duration: duration)
+        }
+
+        // If no STARTED events, fall back to COMPLETED only
+        if events.isEmpty {
+            events = completed.map { c in
+                RachioWateringEvent(id: c.id, zoneId: "", zoneName: c.zoneName,
+                                   startDate: c.date, endDate: nil, duration: 0)
+            }
+        }
+
+        // Deduplicate: collapse same zone within 2 hours
+        let deduped = events.reduce(into: [RachioWateringEvent]()) { result, event in
+            if result.contains(where: {
+                $0.zoneName == event.zoneName &&
+                abs($0.startDate.timeIntervalSince(event.startDate)) < 7200
+            }) { return }
+            result.append(event)
+        }
+
+        // Debug: log parsed events
+        for e in deduped.prefix(3) {
+            logger.info("Event: \(e.zoneName) start=\(e.startDate) end=\(e.endDate.map { "\($0)" } ?? "nil") duration=\(e.duration)s")
+        }
+
+        cachedEvents = deduped
         eventCacheTimestamp = Date()
         logger.info("Fetched \(events.count) watering events for device \(deviceId)")
         return events

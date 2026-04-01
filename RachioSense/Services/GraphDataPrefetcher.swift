@@ -20,6 +20,11 @@ final class GraphDataPrefetcher {
 
     /// Fetch only data since the most recent reading — smart refresh
     func fetchRecent(modelContext: ModelContext) async {
+        if let existing = activeFetchTask {
+            logger.debug(" fetchRecent: already fetching, waiting...")
+            await existing.value
+            return
+        }
         if isFetching {
             logger.debug(" fetchRecent: already fetching, skipping")
             return
@@ -77,14 +82,21 @@ final class GraphDataPrefetcher {
 
     /// Fetch since last fetch (or 7 days if first time). Skips if fetched < 5 min ago.
     func fetchIfNeeded(modelContext: ModelContext) async {
-        if isFetching {
+        // If already running, wait for it to finish rather than starting a duplicate
+        if let existing = activeFetchTask {
             logger.debug(" fetchIfNeeded: already fetching, waiting...")
-            while isFetching {
-                try? await Task.sleep(nanoseconds: 500_000_000)
-            }
+            await existing.value
             return
         }
 
+        // Wrap in activeFetchTask to coalesce concurrent callers
+        let task = Task { await _fetchIfNeeded(modelContext: modelContext) }
+        activeFetchTask = task
+        await task.value
+        activeFetchTask = nil
+    }
+
+    private func _fetchIfNeeded(modelContext: ModelContext) async {
         let now = Date()
         let lastFetch = UserDefaults.standard.object(forKey: lastIncrementalFetchKey) as? Date
         let allReadings = (try? modelContext.fetch(FetchDescriptor<SensorReading>())) ?? []
@@ -168,13 +180,26 @@ final class GraphDataPrefetcher {
             existingByEUI[r.eui, default: []].insert(r.recordedAt)
         }
 
-        // Fetch sensors one at a time to avoid 429s
+        // Short fetches (<=24h = 1 chunk each): run all sensors concurrently — fast, no 429 risk
+        // Long fetches (>24h = multiple chunks): run sequentially with delays to avoid 429s
         var allResults: [(String, [SenseCraftAPI.HistoricalReading])] = []
-        for (i, sensor) in visibleSensors.enumerated() {
-            if i > 0 { try? await Task.sleep(nanoseconds: 2_000_000_000) } // 2s between sensors
-            let result = await fetchWithRetry(sensor: sensor, hours: hours)
-            allResults.append(result)
-            logger.info("Sensor \(i+1)/\(visibleSensors.count): \(sensor.eui.suffix(4)) = \(result.1.count) readings")
+        if hours <= 24 {
+            await withTaskGroup(of: (String, [SenseCraftAPI.HistoricalReading]).self) { group in
+                for sensor in visibleSensors {
+                    group.addTask { await self.fetchWithRetry(sensor: sensor, hours: hours) }
+                }
+                for await result in group {
+                    logger.info("✓ \(result.0.suffix(4)): \(result.1.count) readings")
+                    allResults.append(result)
+                }
+            }
+        } else {
+            for (i, sensor) in visibleSensors.enumerated() {
+                if i > 0 { try? await Task.sleep(nanoseconds: 2_000_000_000) } // 2s between sensors
+                let result = await fetchWithRetry(sensor: sensor, hours: hours)
+                allResults.append(result)
+                logger.info("Sensor \(i+1)/\(visibleSensors.count): \(sensor.eui.suffix(4)) = \(result.1.count) readings")
+            }
         }
         logger.debug(" Total fetched: \(allResults.map { $0.1.count }.reduce(0, +)) readings across \(allResults.count) sensors")
 

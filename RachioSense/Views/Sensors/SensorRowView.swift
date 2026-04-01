@@ -61,6 +61,31 @@ struct SensorRowView: View {
 
     private var isDisabled: Bool { sensor.isHiddenFromGraphs }
 
+    private var moistureSecondaryRow: some View {
+        coloredMoistureLabel(suffix: suffix(for: secondaryLabel),
+                             color: hasAlias ? DS.Color.textTertiary : DS.Color.textSecondary)
+    }
+
+    private func moistureTertiaryRow(_ text: String) -> some View {
+        coloredMoistureLabel(suffix: tempDisplay.map { " · \($0)" } ?? "",
+                             color: DS.Color.textSecondary)
+    }
+
+    private func coloredMoistureLabel(suffix: String, color: Color) -> some View {
+        (Text("\(Int(moisture))%").foregroundStyle(moistureColor) +
+         Text(suffix).foregroundStyle(color))
+            .font(DS.Font.caption)
+    }
+
+    private func suffix(for label: String) -> String {
+        switch label {
+        case "moisture":    return " moisture"
+        case "lastUpdated": return reading.map { " · Updated \($0.recordedAt.relativeFormatted)" } ?? ""
+        case "group":       return sensor.groupId.map { " · \($0)" } ?? ""
+        default:            return tempDisplay.map { " · \($0)" } ?? " moisture"
+        }
+    }
+
     private func relativeDryDate(_ date: Date) -> String {
         let hours = date.timeIntervalSinceNow / 3600
         if hours < 24 {
@@ -99,15 +124,11 @@ struct SensorRowView: View {
                                 .clipShape(Capsule())
                         }
                     }
-                    if let secondary = secondaryText, !isDisabled {
-                        Text(secondary)
-                            .font(DS.Font.caption)
-                            .foregroundStyle(hasAlias ? DS.Color.textTertiary : DS.Color.textSecondary)
+                    if !isDisabled, hasReading {
+                        moistureSecondaryRow
                     }
-                    if let tertiary = tertiaryText, !isDisabled {
-                        Text(tertiary)
-                            .font(DS.Font.caption)
-                            .foregroundStyle(DS.Color.textSecondary)
+                    if tertiaryText != nil, !isDisabled {
+                        moistureTertiaryRow("")
                     } else if isDisabled {
                         Text("Not collecting data")
                             .font(DS.Font.caption)

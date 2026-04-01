@@ -169,12 +169,31 @@ Historical moisture data displayed in cards organized by zone groups.
 | Dry | 🟡 Yellow/Orange | Dashed | 25% |
 | High | 🔵 Blue | Dashed | 40% |
 
+### Watering Event Overlay
+
+Rachio watering history is fetched and overlaid directly on each graph card:
+
+| Element | Description |
+|---------|-------------|
+| **Start line** | Teal dashed vertical line at zone start time |
+| **End line** | Teal dashed vertical line at zone stop time |
+| **Fill** | Light teal shaded region between start and end (runs ≥ 5 min only) |
+
+Events are matched to graph cards by zone name. Each card shows only events for its own zone.
+
+### Double-Tap Period Sync
+
+| Action | Result |
+|--------|--------|
+| Single tap | Changes period for this card only |
+| Double tap | Syncs all cards — brief blue border flashes on all cards |
+
 ### Pull-to-Refresh Behavior
 
 **Smart Incremental Fetch:**
 1. Calculates hours since last stored reading per sensor
-2. Fetches only the gap (not full 7 days)
-3. Example: If last reading was 2h ago, fetches 2h of data
+2. Fetches only the gap (not full 7 days) — concurrent for short fetches, sequential for 7-day history
+3. Example: If last reading was 2h ago, fetches 2h of data for all sensors simultaneously
 
 **Cooldown:**
 - 30-second minimum between full refreshes
@@ -217,7 +236,9 @@ Historical moisture data displayed in cards organized by zone groups.
 | **Temperature** | °F or °C based on settings |
 | **Moisture bar** | Horizontal gradient bar showing level |
 | **Timestamp** | Relative time since last reading |
-| **Status label** | Only shown for Critical/Dry/High (not OK) |
+| **Status label** | Critical/Dry/High badges (hidden for disabled sensors) |
+| **Moisture %** | Displayed in threshold color (red/yellow/green/blue) |
+| **Predictive dry date** | "Dries in 6h / tomorrow / in 3 days" when trending downward |
 | **Auto badge** | "Auto at 20%" shown for OK sensors with auto-water enabled |
 
 ### Sensor Detail View
@@ -256,6 +277,20 @@ Also shows the actual expiry date (e.g., "Apr 9, 2026").
 ---
 
 ## 🌿 Zones Tab
+
+### Zone Sort Options
+
+Tap the ↑↓ icon in the toolbar to sort zone tiles:
+
+| Sort | Order | Description |
+|------|-------|-------------|
+| **Moisture** | Low → High | Driest zones first (default) |
+| **Name** | A → Z | Alphabetical |
+| **Next Run** | Soonest first | Uses same schedule logic as zone card display |
+| **Last Watered** | Most recent first | Zones watered most recently at top |
+| **Weekly Watering** | Most → Least | Zones with most scheduled weekly minutes first |
+
+Sort preference is persisted across sessions.
 
 ### Zone Row Layout
 

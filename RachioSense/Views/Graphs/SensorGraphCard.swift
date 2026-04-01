@@ -118,6 +118,8 @@ struct SensorGraphCard: View {
         return values
     }
 
+    private let wateringEventColor = Color(hex: "06B6D4") // teal — distinct from sensor line colors
+
     private var visibleWateringEvents: [RachioWateringEvent] {
         let cutoff = cutoffDate(for: localPeriod)
         return wateringEvents.filter { $0.startDate >= cutoff && $0.startDate <= Date() }
@@ -221,16 +223,26 @@ struct SensorGraphCard: View {
                 .interpolationMethod(.linear)
             }
 
-            // Watering event markers — vertical cyan lines
+            // Watering event markers — dotted vertical lines + fill for long runs
             ForEach(visibleWateringEvents) { event in
-                RuleMark(x: .value("Watered", event.startDate))
-                    .foregroundStyle(Color.cyan.opacity(0.5))
-                    .lineStyle(StrokeStyle(lineWidth: 1.5))
-                    .annotation(position: .top, spacing: 0) {
-                        Image(systemName: "drop.fill")
-                            .font(.system(size: 7))
-                            .foregroundStyle(Color.cyan.opacity(0.8))
-                    }
+                // Fill between start and end for runs >= 5 min
+                if let end = event.endDate, event.isLongEnough {
+                    RectangleMark(
+                        xStart: .value("Start", event.startDate),
+                        xEnd: .value("End", end)
+                    )
+                    .foregroundStyle(wateringEventColor.opacity(0.12))
+                }
+                // Start line
+                RuleMark(x: .value("Start", event.startDate))
+                    .foregroundStyle(wateringEventColor)
+                    .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [3, 3]))
+                // End line (if available)
+                if let end = event.endDate, event.isLongEnough {
+                    RuleMark(x: .value("End", end))
+                        .foregroundStyle(wateringEventColor)
+                        .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [3, 3]))
+                }
             }
 
             // Auto-water threshold — red
@@ -281,6 +293,7 @@ struct SensorGraphCard: View {
                             .lineLimit(1)
                     }
                 }
+
             }
         }
     }

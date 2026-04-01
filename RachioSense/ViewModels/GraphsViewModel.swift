@@ -125,6 +125,9 @@ final class GraphsViewModel {
     /// Force refresh - fetches last 24h of fresh data (lightweight)
     @MainActor
     func forceRefresh(modelContext: ModelContext) async {
+        guard !isFetchingData else { return }
+        // Cooldown: ignore if refreshed less than 30s ago
+        if let last = lastFetchedAt, Date().timeIntervalSince(last) < 30 { return }
         isLoading = true
         isFetchingData = true
         await GraphDataPrefetcher.shared.fetchRecent(modelContext: modelContext)
