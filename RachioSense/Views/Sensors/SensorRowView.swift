@@ -119,7 +119,12 @@ struct SensorRowView: View {
 
             // Moisture bar
             if hasReading {
-                DSMoistureBar(value: moisture)
+                DSMoistureBar(
+                    value: moisture,
+                    criticalThreshold: autoWaterThreshold,
+                    dryThreshold: dryThreshold,
+                    highThreshold: highThreshold
+                )
             }
 
             // Status indicator — show for critical, dry, or high (not for disabled sensors)

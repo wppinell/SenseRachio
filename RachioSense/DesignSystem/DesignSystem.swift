@@ -304,8 +304,16 @@ struct DSMoistureBar: View {
     let value: Double // 0–100
     var height: CGFloat = 6
     var showLabel: Bool = false
+    var criticalThreshold: Double = 20
+    var dryThreshold: Double = 25
+    var highThreshold: Double = 40
 
-    var color: Color { DS.Color.moisture(value) }
+    var color: Color {
+        if value < criticalThreshold { return DS.Color.error }
+        if value < dryThreshold { return DS.Color.warning }
+        if value >= highThreshold { return DS.Color.info }
+        return DS.Color.online
+    }
 
     var body: some View {
         VStack(alignment: .trailing, spacing: 2) {
