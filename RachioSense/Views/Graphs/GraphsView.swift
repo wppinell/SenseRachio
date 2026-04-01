@@ -54,9 +54,7 @@ struct GraphsView: View {
                 }
             }
             .task {
-                let mc = modelContext
-                let vm = viewModel
-                Task.detached(priority: .userInitiated) { await vm.load(modelContext: mc) }
+                await viewModel.load(modelContext: modelContext)
             }
             .refreshable {
                 guard !viewModel.isFetchingData else { return }

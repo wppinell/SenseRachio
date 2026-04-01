@@ -82,12 +82,7 @@ struct DashboardView: View {
         }
         .task {
             locationName = UserDefaults.standard.string(forKey: "cached_city_name")
-            // Detach so tab switches / view re-renders don't cancel mid-fetch
-            let mc = modelContext
-            let vm = viewModel
-            Task.detached(priority: .userInitiated) {
-                await vm.load(modelContext: mc)
-            }
+            await viewModel.load(modelContext: modelContext)
             await resolveLocationName()
             await loadRainSkips()
         }

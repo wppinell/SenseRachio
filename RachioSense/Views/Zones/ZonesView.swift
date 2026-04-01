@@ -109,12 +109,8 @@ struct ZonesView: View {
             }
         }
         .task {
-            let mc = modelContext
-            let vm = viewModel
-            Task.detached(priority: .userInitiated) {
-                await vm.loadZones(modelContext: mc)
-                await MainActor.run { self.loadMoisture(modelContext: mc) }
-            }
+            await viewModel.loadZones(modelContext: modelContext)
+            loadMoisture(modelContext: modelContext)
         }
         .confirmationDialog(
             "Stop All Zones",
