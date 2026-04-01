@@ -115,7 +115,17 @@ final class SensorsViewModel {
             predicate: #Predicate { $0.eui == eui && $0.recordedAt > cutoff },
             sortBy: [SortDescriptor(\SensorReading.recordedAt)]
         )
-        let recent = (try? modelContext.fetch(descriptor)) ?? []
+        var recent = (try? modelContext.fetch(descriptor)) ?? []
+        guard recent.count >= 4 else { return nil }
+
+        // Find the most recent watering spike (sharp moisture rise > 5% in one reading)
+        // and only use readings after it — avoids the rise polluting the decline slope
+        for i in stride(from: recent.count - 1, through: 1, by: -1) {
+            if recent[i].moisture - recent[i-1].moisture > 5 {
+                recent = Array(recent[i...])
+                break
+            }
+        }
         guard recent.count >= 4 else { return nil }
 
         // Use linear regression on last 24h to find moisture decline rate (% per second)

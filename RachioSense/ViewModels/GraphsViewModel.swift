@@ -106,7 +106,13 @@ final class GraphsViewModel {
 
         // Then fetch fresh data in background — update graphs when done
         isFetchingData = true
-        await GraphDataPrefetcher.shared.fetchIfNeeded(modelContext: modelContext)
+
+        // Detached so tab switches don't cancel the fetch mid-flight
+        let fetchTask = Task.detached(priority: .background) {
+            await GraphDataPrefetcher.shared.fetchIfNeeded(modelContext: modelContext)
+        }
+        await fetchTask.value
+
         if let devices = try? await RachioAPI.shared.getDevices(),
            let deviceId = devices.first?.id {
             wateringEvents = (try? await RachioAPI.shared.getWateringEvents(deviceId: deviceId)) ?? []
@@ -121,8 +127,11 @@ final class GraphsViewModel {
     func forceRefresh(modelContext: ModelContext) async {
         isLoading = true
         isFetchingData = true
-        // Just fetch last 24h — much lighter than full 7-day refresh
         await GraphDataPrefetcher.shared.fetchRecent(modelContext: modelContext)
+        if let devices = try? await RachioAPI.shared.getDevices(),
+           let deviceId = devices.first?.id {
+            wateringEvents = (try? await RachioAPI.shared.getWateringEvents(deviceId: deviceId, forceRefresh: true)) ?? []
+        }
         reloadReadings(modelContext: modelContext)
         lastFetchedAt = Date()
         isFetchingData = false

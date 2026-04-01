@@ -42,7 +42,7 @@ final class DashboardViewModel {
 
     @MainActor
     func load(modelContext: ModelContext) async {
-        isLoading = true
+        isLoading = zones.isEmpty  // only show full loading screen on first load
         errorMessage = nil
 
         // Always seed with stored readings first so UI never goes blank

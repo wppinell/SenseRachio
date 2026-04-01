@@ -58,7 +58,7 @@ struct DashboardView: View {
     var body: some View {
         NavigationStack {
             Group {
-                if viewModel.isLoading {
+                if viewModel.isLoading && viewModel.zones.isEmpty {
                     ScrollView {
                         DSLoadingState(label: "Loading dashboard…")
                             .padding(.horizontal, DS.Spacing.lg)
@@ -80,9 +80,13 @@ struct DashboardView: View {
             }
         }
         .task {
-            // Restore cached city name instantly
             locationName = UserDefaults.standard.string(forKey: "cached_city_name")
-            await viewModel.load(modelContext: modelContext)
+            // Detach so tab switches / view re-renders don't cancel mid-fetch
+            let mc = modelContext
+            let vm = viewModel
+            Task.detached(priority: .userInitiated) {
+                await vm.load(modelContext: mc)
+            }
             await resolveLocationName()
         }
     }

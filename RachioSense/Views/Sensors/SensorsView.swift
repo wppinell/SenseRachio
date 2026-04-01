@@ -85,8 +85,12 @@ struct SensorsView: View {
             .navigationBarTitleDisplayMode(.inline)
         }
         .task {
-            await viewModel.loadSensors(modelContext: modelContext)
-            computePredictions()
+            let mc = modelContext
+            let vm = viewModel
+            Task.detached(priority: .userInitiated) {
+                await vm.loadSensors(modelContext: mc)
+                await MainActor.run { self.computePredictions() }
+            }
         }
     }
 

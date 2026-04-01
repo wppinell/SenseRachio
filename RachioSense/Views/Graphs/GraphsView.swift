@@ -41,7 +41,11 @@ struct GraphsView: View {
                     }
                 }
             }
-            .task { await viewModel.load(modelContext: modelContext) }
+            .task {
+                let mc = modelContext
+                let vm = viewModel
+                Task.detached(priority: .userInitiated) { await vm.load(modelContext: mc) }
+            }
             .refreshable { await viewModel.forceRefresh(modelContext: modelContext) }
             // Removed: onChange of chartPeriod was triggering duplicate fetches
             // Users can pull-to-refresh manually if needed after changing period
