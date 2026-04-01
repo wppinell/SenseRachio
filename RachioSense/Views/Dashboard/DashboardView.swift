@@ -7,6 +7,7 @@ struct DashboardView: View {
     @Environment(\.modelContext) private var modelContext
     @State private var viewModel = DashboardViewModel()
     @State private var locationName: String? = nil
+    @State private var rainSkips: [RachioRainSkip] = []
     @AppStorage(AppStorageKey.temperatureUnit) private var tempUnit = "celsius"
 
     @AppStorage(AppStorageKey.autoWaterThreshold) private var autoWaterThreshold: Double = 20
@@ -88,6 +89,7 @@ struct DashboardView: View {
                 await vm.load(modelContext: mc)
             }
             await resolveLocationName()
+            await loadRainSkips()
         }
     }
 
@@ -167,7 +169,7 @@ struct DashboardView: View {
                             .font(DS.Font.caption)
                             .foregroundStyle(DS.Color.textSecondary)
                     }
-                } else if criticalSensors.isEmpty && drySensors.isEmpty && highSensors.isEmpty && expiringSensors.isEmpty && viewModel.rachioRateLimitMinutes == nil {
+                } else if criticalSensors.isEmpty && drySensors.isEmpty && highSensors.isEmpty && expiringSensors.isEmpty && viewModel.rachioRateLimitMinutes == nil && rainSkips.isEmpty {
                     // All OK — show a clean green message
                     HStack(spacing: DS.Spacing.xs) {
                         Image(systemName: "checkmark.circle.fill")
@@ -191,6 +193,9 @@ struct DashboardView: View {
                     }
                     if let mins = viewModel.rachioRateLimitMinutes {
                         RateLimitAlertSection(minutesRemaining: mins)
+                    }
+                    if !rainSkips.isEmpty {
+                        RainSkipAlertSection(skips: rainSkips)
                     }
                 }
             }
@@ -315,6 +320,23 @@ struct DashboardView: View {
 
             WeatherForecastCard(forecast: viewModel.forecast, tempUnit: tempUnit)
                 .padding(.horizontal, DS.Spacing.lg)
+        }
+    }
+
+    private func loadRainSkips() async {
+        guard appState.hasRachioCredentials,
+              let deviceId = try? await RachioAPI.shared.getDevices().first?.id else { return }
+        do {
+            // Fetch past 24h + future skips (2 day window covers today + tomorrow)
+            let allSkips = try await RachioAPI.shared.getRainSkips(deviceId: deviceId, days: 2)
+            // Filter to today and tomorrow only
+            let cal = Calendar.current
+            let filtered = allSkips.filter { skip in
+                cal.isDateInToday(skip.skipDate) || cal.isDateInTomorrow(skip.skipDate) || cal.isDateInYesterday(skip.skipDate)
+            }
+            await MainActor.run { rainSkips = filtered }
+        } catch {
+            // Ignore — non-critical
         }
     }
 
@@ -559,6 +581,70 @@ private struct SensorStatusSection: View {
 }
 
 
+
+private struct RainSkipAlertSection: View {
+    let skips: [RachioRainSkip]
+    
+    private func skipTimeLabel(_ date: Date) -> String {
+        let cal = Calendar.current
+        let now = Date()
+        
+        if date < now {
+            // Past — show relative time
+            let hours = now.timeIntervalSince(date) / 3600
+            if hours < 1 {
+                let mins = Int(now.timeIntervalSince(date) / 60)
+                return "\(mins)m ago"
+            } else if hours < 24 {
+                return "\(Int(hours))h ago"
+            } else {
+                return "\(Int(hours / 24))d ago"
+            }
+        } else if cal.isDateInToday(date) {
+            let fmt = DateFormatter()
+            fmt.dateFormat = "h:mm a"
+            return fmt.string(from: date)
+        } else if cal.isDateInTomorrow(date) {
+            let fmt = DateFormatter()
+            fmt.dateFormat = "h:mm a"
+            return "Tomorrow \(fmt.string(from: date))"
+        } else {
+            let fmt = DateFormatter()
+            fmt.dateFormat = "MMM d"
+            return fmt.string(from: date)
+        }
+    }
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: DS.Spacing.xs) {
+            HStack(spacing: DS.Spacing.xs) {
+                Image(systemName: "cloud.rain.fill")
+                    .font(.system(size: 11))
+                    .foregroundStyle(Color.cyan)
+                Text("Weather Skip")
+                    .font(DS.Font.label)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(Color.cyan)
+            }
+            
+            ForEach(skips) { skip in
+                HStack {
+                    Text(skip.scheduleName)
+                        .font(DS.Font.cardBody)
+                        .foregroundStyle(DS.Color.textPrimary)
+                        .lineLimit(1)
+                    Spacer(minLength: DS.Spacing.sm)
+                    Text(skipTimeLabel(skip.skipDate))
+                        .font(DS.Font.cardTitle)
+                        .foregroundStyle(Color.cyan)
+                }
+            }
+        }
+        .padding(DS.Spacing.sm)
+        .background(Color.cyan.opacity(0.06))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+    }
+}
 
 #Preview {
     DashboardView()

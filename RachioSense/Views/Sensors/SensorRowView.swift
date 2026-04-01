@@ -4,6 +4,7 @@ struct SensorRowView: View {
     let sensor: SensorConfig
     let reading: SensorReading?
     var predictedDryDate: Date? = nil
+    var predictedCriticalDate: Date? = nil
     @AppStorage(AppStorageKey.temperatureUnit) private var tempUnit = "celsius"
     @AppStorage(AppStorageKey.sensorPrimaryLabel) private var primaryLabel = "name"
     @AppStorage(AppStorageKey.sensorSecondaryLabel) private var secondaryLabel = "moistureTemp"
@@ -31,26 +32,6 @@ struct SensorRowView: View {
         sensor.alias != nil && !sensor.alias!.isEmpty
     }
 
-    private var secondaryText: String? {
-        // If alias is set, show original name first
-        if hasAlias {
-            return sensor.name
-        }
-        guard hasReading else { return nil }
-        switch secondaryLabel {
-        case "moisture":     return "\(Int(moisture))% moisture"
-        case "lastUpdated":  return reading.map { "Updated \($0.recordedAt.relativeFormatted)" }
-        case "group":        return sensor.groupId
-        default:             return tempDisplay.map { "\(Int(moisture))% · \($0)" }
-        }
-    }
-    
-    private var tertiaryText: String? {
-        // If alias is set, show reading info as tertiary
-        guard hasAlias, hasReading else { return nil }
-        return tempDisplay.map { "\(Int(moisture))% · \($0)" }
-    }
-
     private var tempDisplay: String? {
         guard let tempC = reading?.tempC else { return nil }
         if tempUnit == "fahrenheit" {
@@ -62,11 +43,6 @@ struct SensorRowView: View {
     private var isDisabled: Bool { sensor.isHiddenFromGraphs }
 
     private var moistureSecondaryRow: some View {
-        coloredMoistureLabel(suffix: suffix(for: secondaryLabel),
-                             color: hasAlias ? DS.Color.textTertiary : DS.Color.textSecondary)
-    }
-
-    private func moistureTertiaryRow(_ text: String) -> some View {
         coloredMoistureLabel(suffix: tempDisplay.map { " · \($0)" } ?? "",
                              color: DS.Color.textSecondary)
     }
@@ -75,15 +51,6 @@ struct SensorRowView: View {
         (Text("\(Int(moisture))%").foregroundStyle(moistureColor) +
          Text(suffix).foregroundStyle(color))
             .font(DS.Font.caption)
-    }
-
-    private func suffix(for label: String) -> String {
-        switch label {
-        case "moisture":    return " moisture"
-        case "lastUpdated": return reading.map { " · Updated \($0.recordedAt.relativeFormatted)" } ?? ""
-        case "group":       return sensor.groupId.map { " · \($0)" } ?? ""
-        default:            return tempDisplay.map { " · \($0)" } ?? " moisture"
-        }
     }
 
     private func relativeDryDate(_ date: Date) -> String {
@@ -124,12 +91,19 @@ struct SensorRowView: View {
                                 .clipShape(Capsule())
                         }
                     }
+                    if !isDisabled, hasAlias {
+                        // Alias set: show original name as secondary
+                        if let name = sensor.name as String? {
+                            Text(name)
+                                .font(DS.Font.caption)
+                                .foregroundStyle(DS.Color.textTertiary)
+                        }
+                    }
                     if !isDisabled, hasReading {
+                        // Always show moisture row (contains temp when available)
                         moistureSecondaryRow
                     }
-                    if tertiaryText != nil, !isDisabled {
-                        moistureTertiaryRow("")
-                    } else if isDisabled {
+                    if isDisabled {
                         Text("Not collecting data")
                             .font(DS.Font.caption)
                             .foregroundStyle(DS.Color.textTertiary)
@@ -179,6 +153,16 @@ struct SensorRowView: View {
                         Text("Dry")
                             .font(DS.Font.footnote)
                             .foregroundStyle(DS.Color.warning)
+                    }
+                } else if let criticalDate = predictedCriticalDate, isDry {
+                    // Already dry — show time to critical
+                    HStack(spacing: DS.Spacing.xs) {
+                        Image(systemName: "exclamationmark.triangle")
+                            .font(.system(size: 11))
+                            .foregroundStyle(DS.Color.error.opacity(0.9))
+                        Text("Critical \(relativeDryDate(criticalDate))")
+                            .font(DS.Font.footnote)
+                            .foregroundStyle(DS.Color.error.opacity(0.9))
                     }
                 } else if let dryDate = predictedDryDate, !isCritical, !isDry {
                     // Trending dry — show prediction

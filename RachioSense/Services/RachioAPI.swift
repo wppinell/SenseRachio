@@ -69,6 +69,13 @@ struct RachioScheduleRule: Codable, Identifiable {
     }
 }
 
+struct RachioRainSkip: Identifiable {
+    let id: String
+    let scheduleName: String
+    let skipDate: Date
+    let reason: String  // e.g. "Rain detected", "Freeze detected"
+}
+
 struct RachioWateringEvent: Identifiable {
     let id: String
     let zoneId: String
@@ -594,4 +601,95 @@ final class RachioAPI {
         logger.info("Fetched \(events.count) watering events for device \(deviceId)")
         return events
     }
+
+    /// Fetch weather intelligence skips (rain delay, freeze skip, etc.) — past and future
+    func getRainSkips(deviceId: String, days: Int = 7) async throws -> [RachioRainSkip] {
+        // Events API can return both past and already-decided future skips
+        return try await getPastRainSkips(deviceId: deviceId, days: days)
+    }
+    
+    /// Fetch rain skips from event history (past and near-future that are already decided)
+    private func getPastRainSkips(deviceId: String, days: Int) async throws -> [RachioRainSkip] {
+        let now = Date().timeIntervalSince1970 * 1000
+        let startMs = Int(now) - (days * 86400 * 1000)
+        // Look 2 days ahead for already-decided future skips
+        let endMs = Int(now) + (2 * 86400 * 1000)
+        let request = try makeRequest(path: "/device/\(deviceId)/event?startTime=\(startMs)&endTime=\(endMs)", method: "GET")
+        let (data, response) = try await session.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            return []
+        }
+
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+            return []
+        }
+
+
+        
+        // Look for WEATHER_INTELLIGENCE or SCHEDULE_STATUS with skip indicators
+        let skips: [RachioRainSkip] = json.compactMap { dict in
+            guard let type = dict["type"] as? String,
+                  let subType = dict["subType"] as? String,
+                  let eventDateMs = dict["eventDate"] as? Int,
+                  let id = dict["id"] as? String else { return nil }
+            
+            // Match weather intelligence skips OR schedule status skips
+            let isWeatherSkip = type == "WEATHER_INTELLIGENCE" && (subType.contains("SKIP") || subType.contains("DELAY"))
+            let isScheduleSkip = type == "SCHEDULE_STATUS" && subType.contains("SKIP")
+            guard isWeatherSkip || isScheduleSkip else { return nil }
+
+            let summary = dict["summary"] as? String ?? "Schedule skipped"
+
+            // Extract schedule name from formats like:
+            // "Rose Bush was scheduled for 3/31..." → "Rose Bush"
+            // "Garden Night schedule was skipped..." → "Garden Night"
+            let scheduleName: String
+            if let range = summary.range(of: " was scheduled") {
+                scheduleName = String(summary[..<range.lowerBound])
+            } else if let range = summary.range(of: " schedule") {
+                scheduleName = String(summary[..<range.lowerBound])
+            } else {
+                scheduleName = "Schedule"
+            }
+            let reason = subType.contains("RAIN") ? "Rain detected" :
+                         subType.contains("FREEZE") ? "Freeze detected" :
+                         subType.contains("WIND") ? "High wind" : "Weather skip"
+
+            // Try to extract the scheduled time from summary: "for 3/31 at 06:47 PM (MST)"
+            var skipDate = Date(timeIntervalSince1970: Double(eventDateMs) / 1000)
+            if let forRange = summary.range(of: "for "),
+               let atRange = summary.range(of: " at ", range: forRange.upperBound..<summary.endIndex) {
+                let dateStr = String(summary[forRange.upperBound..<atRange.lowerBound]) // "3/31"
+                let timeStart = atRange.upperBound
+                if let parenRange = summary.range(of: " (", range: timeStart..<summary.endIndex) {
+                    let timeStr = String(summary[timeStart..<parenRange.lowerBound]) // "06:47 PM"
+                    let fullStr = "\(dateStr) \(timeStr)"
+                    let fmt = DateFormatter()
+                    fmt.dateFormat = "M/d h:mm a"
+                    fmt.defaultDate = Date() // Use current year
+                    if let parsed = fmt.date(from: fullStr) {
+                        // Ensure it's in the current year context
+                        let cal = Calendar.current
+                        var comps = cal.dateComponents([.month, .day, .hour, .minute], from: parsed)
+                        comps.year = cal.component(.year, from: Date())
+                        if let adjusted = cal.date(from: comps) {
+                            skipDate = adjusted
+                        }
+                    }
+                }
+            }
+            
+            return RachioRainSkip(
+                id: id,
+                scheduleName: scheduleName.trimmingCharacters(in: .whitespaces),
+                skipDate: skipDate,
+                reason: reason
+            )
+        }
+
+        logger.info("Found \(skips.count) past weather intelligence skips")
+        return skips
+    }
+    
 }

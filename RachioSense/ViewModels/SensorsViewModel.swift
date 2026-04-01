@@ -109,8 +109,17 @@ final class SensorsViewModel {
 
     /// Estimate when a sensor will hit the dry threshold based on recent decline rate.
     /// Uses readings from the last 24h, returns nil if trending up or insufficient data.
+    func predictedCriticalDate(for eui: String, autoWaterThreshold: Double, modelContext: ModelContext) -> Date? {
+        return predictedDate(for: eui, threshold: autoWaterThreshold, modelContext: modelContext)
+    }
+
     func predictedDryDate(for eui: String, dryThreshold: Double, modelContext: ModelContext) -> Date? {
-        let cutoff = Date().addingTimeInterval(-24 * 3600)
+        return predictedDate(for: eui, threshold: dryThreshold, modelContext: modelContext)
+    }
+
+    private func predictedDate(for eui: String, threshold: Double, modelContext: ModelContext) -> Date? {
+        // Use 72h window for slow-drying sensors like Ficus
+        let cutoff = Date().addingTimeInterval(-72 * 3600)
         let descriptor = FetchDescriptor<SensorReading>(
             predicate: #Predicate { $0.eui == eui && $0.recordedAt > cutoff },
             sortBy: [SortDescriptor(\SensorReading.recordedAt)]
@@ -118,8 +127,7 @@ final class SensorsViewModel {
         var recent = (try? modelContext.fetch(descriptor)) ?? []
         guard recent.count >= 4 else { return nil }
 
-        // Find the most recent watering spike (sharp moisture rise > 5% in one reading)
-        // and only use readings after it — avoids the rise polluting the decline slope
+        // Strip readings before the most recent watering spike (>5% rise)
         for i in stride(from: recent.count - 1, through: 1, by: -1) {
             if recent[i].moisture - recent[i-1].moisture > 5 {
                 recent = Array(recent[i...])
@@ -128,30 +136,50 @@ final class SensorsViewModel {
         }
         guard recent.count >= 4 else { return nil }
 
-        // Use linear regression on last 24h to find moisture decline rate (% per second)
-        let n = Double(recent.count)
-        let xs = recent.map { $0.recordedAt.timeIntervalSinceReferenceDate }
-        let ys = recent.map { $0.moisture }
-        let xMean = xs.reduce(0, +) / n
-        let yMean = ys.reduce(0, +) / n
-        let num = zip(xs, ys).reduce(0.0) { $0 + ($1.0 - xMean) * ($1.1 - yMean) }
-        let den = xs.reduce(0.0) { $0 + ($1 - xMean) * ($1 - xMean) }
-        guard den > 0 else { return nil }
-        let slope = num / den  // % per second
-
-        // Only predict if trending downward
-        guard slope < -0.000001 else { return nil }
-
-        // Current moisture (latest reading)
         guard let latest = recent.last else { return nil }
         let current = latest.moisture
-        guard current > dryThreshold else { return nil } // already dry
+        guard current > threshold else { return nil }
 
-        // Time until it hits dryThreshold at current rate
-        let secondsUntilDry = (current - dryThreshold) / (-slope)
-        guard secondsUntilDry > 0, secondsUntilDry < 7 * 86400 else { return nil } // max 7 days out
+        // Exponential decay fit: moisture(t) = A * exp(-t / τ)
+        // Linearize: ln(moisture) = ln(A) - t/τ → fit ln(y) vs t with weighted linear regression
+        // Weight recent readings more heavily (exponential weights)
+        let t0 = recent.first!.recordedAt.timeIntervalSinceReferenceDate
+        let now = Date().timeIntervalSinceReferenceDate
 
-        return Date().addingTimeInterval(secondsUntilDry)
+        var wSum = 0.0, wxSum = 0.0, wySum = 0.0, wxxSum = 0.0, wxySum = 0.0
+        for reading in recent {
+            guard reading.moisture > 0 else { continue }
+            let t = reading.recordedAt.timeIntervalSinceReferenceDate - t0
+            let y = log(reading.moisture)
+            // Weight: exponential decay so most recent readings matter most
+            let age = now - reading.recordedAt.timeIntervalSinceReferenceDate
+            let w = exp(-age / 14400) // half-weight every 4 hours
+            wSum   += w
+            wxSum  += w * t
+            wySum  += w * y
+            wxxSum += w * t * t
+            wxySum += w * t * y
+        }
+        guard wSum > 0 else { return nil }
+
+        let denom = wSum * wxxSum - wxSum * wxSum
+        guard abs(denom) > 1e-10 else { return nil }
+
+        // slope = -1/τ (must be negative for drying)
+        let slope = (wSum * wxySum - wxSum * wySum) / denom
+        guard slope < -1e-10 else { return nil } // not trending down
+
+        let intercept = (wySum - slope * wxSum) / wSum
+        // moisture(t) = exp(intercept) * exp(slope * t)
+        // Solve for t when moisture = threshold:
+        // threshold = exp(intercept + slope * t)
+        // t = (ln(threshold) - intercept) / slope
+        let tHit = (log(threshold) - intercept) / slope
+        let tNow = now - t0
+        let secondsFromNow = tHit - tNow
+
+        guard secondsFromNow > 0, secondsFromNow < 7 * 86400 else { return nil }
+        return Date().addingTimeInterval(secondsFromNow)
     }
 
     // MARK: - Moisture Color

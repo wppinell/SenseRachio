@@ -11,7 +11,8 @@ struct SensorsView: View {
     @AppStorage(AppStorageKey.autoWaterThreshold) private var criticalThreshold: Double = 20
     @AppStorage(AppStorageKey.dryThreshold) private var dryThreshold: Double = 25
     @AppStorage(AppStorageKey.lowThreshold) private var highThreshold: Double = 40
-    @State private var predictedDryDates: [String: Date] = [:]  // eui → predicted dry date
+    @State private var predictedDryDates: [String: Date] = [:]
+    @State private var predictedCriticalDates: [String: Date] = [:]
 
     enum MoistureFilter: String, CaseIterable {
         case all = "All"
@@ -95,13 +96,18 @@ struct SensorsView: View {
     }
 
     private func computePredictions() {
-        var result: [String: Date] = [:]
+        var dryResult: [String: Date] = [:]
+        var critResult: [String: Date] = [:]
         for sensor in viewModel.sensors {
             if let date = viewModel.predictedDryDate(for: sensor.eui, dryThreshold: dryThreshold, modelContext: modelContext) {
-                result[sensor.eui] = date
+                dryResult[sensor.eui] = date
+            }
+            if let date = viewModel.predictedCriticalDate(for: sensor.eui, autoWaterThreshold: criticalThreshold, modelContext: modelContext) {
+                critResult[sensor.eui] = date
             }
         }
-        predictedDryDates = result
+        predictedDryDates = dryResult
+        predictedCriticalDates = critResult
     }
 
     private var mainContent: some View {
@@ -175,7 +181,8 @@ struct SensorsView: View {
                                 SensorRowView(
                                     sensor: sensor,
                                     reading: viewModel.readings[sensor.eui],
-                                    predictedDryDate: predictedDryDates[sensor.eui]
+                                    predictedDryDate: predictedDryDates[sensor.eui],
+                                    predictedCriticalDate: predictedCriticalDates[sensor.eui]
                                 )
                                 .contentShape(Rectangle())
                             }

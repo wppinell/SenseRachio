@@ -17,6 +17,7 @@ struct SensorGraphCard: View {
     @AppStorage(AppStorageKey.lowThreshold) private var highThreshold: Double = 40
 
     @State private var localPeriod: String = "4d" // per-card — single tap changes only this
+    @State private var renderPeriod: String = "4d" // lags localPeriod by one frame to avoid Y-scale glitch
 
     // Shared color palette for multi-sensor lines
     static let lineColors: [Color] = [
@@ -43,7 +44,7 @@ struct SensorGraphCard: View {
     }
 
     private func readings(for eui: String) -> [(Date, Double)] {
-        let cutoff = cutoffDate(for: localPeriod)
+        let cutoff = cutoffDate(for: renderPeriod)
         return (readingsByEUI[eui] ?? [])
             .filter { $0.recordedAt >= cutoff && $0.moisture >= 0 && $0.moisture <= 100 }
             .map { ($0.recordedAt, $0.moisture) }
@@ -70,7 +71,7 @@ struct SensorGraphCard: View {
     }
 
     private var periodDays: Int {
-        switch localPeriod {
+        switch renderPeriod {
         case "1d": return 1
         case "2d": return 2
         case "4d": return 4
@@ -121,7 +122,7 @@ struct SensorGraphCard: View {
     private let wateringEventColor = Color(hex: "06B6D4") // teal — distinct from sensor line colors
 
     private var visibleWateringEvents: [RachioWateringEvent] {
-        let cutoff = cutoffDate(for: localPeriod)
+        let cutoff = cutoffDate(for: renderPeriod)
         return wateringEvents.filter { $0.startDate >= cutoff && $0.startDate <= Date() }
     }
 
@@ -148,10 +149,16 @@ struct SensorGraphCard: View {
         .dsCard()
         .onAppear {
             localPeriod = chartPeriod
+            renderPeriod = chartPeriod
         }
         .onChange(of: chartPeriod) { _, newVal in
-            // External broadcast (double-tap on another card) → sync local
-            localPeriod = newVal
+            if newVal != localPeriod {
+                localPeriod = newVal
+            }
+        }
+        .onChange(of: localPeriod) { _, newVal in
+            // Delay render by one frame so picker highlight and data change don't race
+            DispatchQueue.main.async { renderPeriod = newVal }
         }
         .animation(.easeInOut(duration: 0.2), value: syncFlash)
     }
@@ -259,6 +266,7 @@ struct SensorGraphCard: View {
                 .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 4]))
         }
         .frame(height: 200)
+        .id(renderPeriod)
         .chartXScale(domain: periodStart...Date())
         .chartXAxis {
             AxisMarks(values: .stride(by: xAxisStride)) { value in
