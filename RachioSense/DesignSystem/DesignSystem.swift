@@ -311,7 +311,7 @@ struct DSMoistureBar: View {
     var color: Color {
         if value < criticalThreshold { return DS.Color.error }
         if value < dryThreshold { return DS.Color.warning }
-        if value >= highThreshold { return DS.Color.info }
+        if value >= highThreshold { return Color(hex: "0EA5E9") } // blue for high moisture
         return DS.Color.online
     }
 
