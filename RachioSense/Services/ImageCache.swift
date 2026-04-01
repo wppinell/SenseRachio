@@ -15,6 +15,24 @@ actor ImageCache {
     private var etags: [String: String] = [:]  // url → etag
     private var memoryCache: [String: UIImage] = [:]
 
+    // nonisolated memory cache — readable synchronously from any context, no actor hop
+    private static let syncCache = OSAllocatedUnfairLock(initialState: [String: UIImage]())
+
+    nonisolated func syncCachedImage(for urlString: String) -> UIImage? {
+        // 1. Check in-memory sync cache first
+        if let cached = Self.syncCache.withLock({ $0[urlString] }) { return cached }
+
+        // 2. Fall through to disk — synchronous read, no actor hop
+        let diskURL = cacheDir.appendingPathComponent(cacheKeyFor(urlString))
+        guard FileManager.default.fileExists(atPath: diskURL.path),
+              let data = try? Data(contentsOf: diskURL),
+              let image = UIImage(data: data) else { return nil }
+
+        // Populate sync cache for next call
+        Self.syncCache.withLock { $0[urlString] = image }
+        return image
+    }
+
     private init() {
         let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
         cacheDir = caches.appendingPathComponent("ZoneImages", isDirectory: true)
@@ -29,6 +47,11 @@ actor ImageCache {
     }
 
     // MARK: - Public API
+
+    private func store(_ image: UIImage, for urlString: String) {
+        memoryCache[urlString] = image
+        Self.syncCache.withLock { $0[urlString] = image }
+    }
 
     /// Fetch image for a URL. Returns cached version if available and unchanged.
     /// Uses ETag to detect server-side changes without downloading unnecessarily.
@@ -52,7 +75,7 @@ actor ImageCache {
             let changed = await hasImageChanged(url: url, cachedEtag: etags[urlString])
             if !changed {
                 Self.logger.debug("Cache hit (disk): \(cacheKey)")
-                memoryCache[urlString] = image
+                store(image, for: urlString)
                 return image
             }
             Self.logger.info("Image changed on server, re-downloading: \(cacheKey)")
@@ -136,7 +159,7 @@ actor ImageCache {
             if http.statusCode == 304,
                let existing = try? Data(contentsOf: diskURL),
                let image = UIImage(data: existing) {
-                memoryCache[urlString] = image
+                store(image, for: urlString)
                 return image
             }
 
@@ -154,7 +177,7 @@ actor ImageCache {
 
             // Write to disk
             try data.write(to: diskURL)
-            memoryCache[urlString] = image
+            store(image, for: urlString)
 
             Self.logger.info("Downloaded and cached: \(url.lastPathComponent)")
             return image
@@ -165,7 +188,7 @@ actor ImageCache {
         }
     }
 
-    private func cacheKeyFor(_ urlString: String) -> String {
+    nonisolated private func cacheKeyFor(_ urlString: String) -> String {
         // Use SHA256 hash of URL as filename to avoid path issues
         let data = Data(urlString.utf8)
         let hash = SHA256.hash(data: data)
