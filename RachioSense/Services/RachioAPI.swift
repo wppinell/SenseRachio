@@ -69,6 +69,14 @@ struct RachioScheduleRule: Codable, Identifiable {
     }
 }
 
+struct RachioWateringEvent: Identifiable {
+    let id: String
+    let zoneId: String
+    let zoneName: String
+    let startDate: Date
+    let duration: Int  // seconds
+}
+
 struct RachioScheduleZone: Codable {
     let id: String
     let duration: Int
@@ -486,5 +494,50 @@ final class RachioAPI {
         guard (200...204).contains(httpResponse.statusCode) else {
             throw RachioAPIError.httpError(httpResponse.statusCode)
         }
+    }
+
+    // MARK: - Watering Events
+
+    private var cachedEvents: [RachioWateringEvent]? = nil
+    private var eventCacheTimestamp: Date? = nil
+
+    /// Fetch watering events for a device for the past N days (cached 10 min).
+    func getWateringEvents(deviceId: String, days: Int = 7, forceRefresh: Bool = false) async throws -> [RachioWateringEvent] {
+        if !forceRefresh,
+           let cached = cachedEvents,
+           let ts = eventCacheTimestamp,
+           Date().timeIntervalSince(ts) < 600 {
+            return cached
+        }
+
+        let endMs = Int(Date().timeIntervalSince1970 * 1000)
+        let startMs = endMs - (days * 86400 * 1000)
+        let request = try makeRequest(path: "/device/\(deviceId)/event?startTime=\(startMs)&endTime=\(endMs)", method: "GET")
+        let (data, response) = try await session.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw RachioAPIError.invalidResponse
+        }
+
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+            return []
+        }
+
+        let events: [RachioWateringEvent] = json.compactMap { dict in
+            guard let type = dict["type"] as? String, type == "ZONE_STATUS",
+                  let subType = dict["subType"] as? String, subType == "ZONE_STARTED",
+                  let eventDateMs = dict["eventDate"] as? Int,
+                  let zoneId = dict["zoneId"] as? String,
+                  let zoneName = dict["zoneName"] as? String,
+                  let duration = dict["duration"] as? Int,
+                  let id = dict["id"] as? String else { return nil }
+            let startDate = Date(timeIntervalSince1970: Double(eventDateMs) / 1000)
+            return RachioWateringEvent(id: id, zoneId: zoneId, zoneName: zoneName, startDate: startDate, duration: duration)
+        }
+
+        cachedEvents = events
+        eventCacheTimestamp = Date()
+        logger.info("Fetched \(events.count) watering events for device \(deviceId)")
+        return events
     }
 }

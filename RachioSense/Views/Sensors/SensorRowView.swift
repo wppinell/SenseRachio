@@ -3,6 +3,7 @@ import SwiftUI
 struct SensorRowView: View {
     let sensor: SensorConfig
     let reading: SensorReading?
+    var predictedDryDate: Date? = nil
     @AppStorage(AppStorageKey.temperatureUnit) private var tempUnit = "celsius"
     @AppStorage(AppStorageKey.sensorPrimaryLabel) private var primaryLabel = "name"
     @AppStorage(AppStorageKey.sensorSecondaryLabel) private var secondaryLabel = "moistureTemp"
@@ -59,6 +60,17 @@ struct SensorRowView: View {
     }
 
     private var isDisabled: Bool { sensor.isHiddenFromGraphs }
+
+    private func relativeDryDate(_ date: Date) -> String {
+        let hours = date.timeIntervalSinceNow / 3600
+        if hours < 24 {
+            return "in \(Int(hours))h"
+        } else {
+            let days = hours / 24
+            if days < 2 { return "tomorrow" }
+            return "in \(Int(days)) days"
+        }
+    }
     
     var body: some View {
         VStack(alignment: .leading, spacing: DS.Spacing.sm) {
@@ -146,6 +158,16 @@ struct SensorRowView: View {
                         Text("Dry")
                             .font(DS.Font.footnote)
                             .foregroundStyle(DS.Color.warning)
+                    }
+                } else if let dryDate = predictedDryDate, !isCritical, !isDry {
+                    // Trending dry — show prediction
+                    HStack(spacing: DS.Spacing.xs) {
+                        Image(systemName: "chart.line.downtrend.xyaxis")
+                            .font(.system(size: 11))
+                            .foregroundStyle(DS.Color.warning.opacity(0.8))
+                        Text("Dries \(relativeDryDate(dryDate))")
+                            .font(DS.Font.footnote)
+                            .foregroundStyle(DS.Color.warning.opacity(0.8))
                     }
                 } else if isHigh {
                     // High — well watered

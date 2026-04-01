@@ -11,6 +11,7 @@ struct SensorsView: View {
     @AppStorage(AppStorageKey.autoWaterThreshold) private var criticalThreshold: Double = 20
     @AppStorage(AppStorageKey.dryThreshold) private var dryThreshold: Double = 25
     @AppStorage(AppStorageKey.lowThreshold) private var highThreshold: Double = 40
+    @State private var predictedDryDates: [String: Date] = [:]  // eui → predicted dry date
 
     enum MoistureFilter: String, CaseIterable {
         case all = "All"
@@ -85,7 +86,18 @@ struct SensorsView: View {
         }
         .task {
             await viewModel.loadSensors(modelContext: modelContext)
+            computePredictions()
         }
+    }
+
+    private func computePredictions() {
+        var result: [String: Date] = [:]
+        for sensor in viewModel.sensors {
+            if let date = viewModel.predictedDryDate(for: sensor.eui, dryThreshold: dryThreshold, modelContext: modelContext) {
+                result[sensor.eui] = date
+            }
+        }
+        predictedDryDates = result
     }
 
     private var mainContent: some View {
@@ -158,7 +170,8 @@ struct SensorsView: View {
                             } label: {
                                 SensorRowView(
                                     sensor: sensor,
-                                    reading: viewModel.readings[sensor.eui]
+                                    reading: viewModel.readings[sensor.eui],
+                                    predictedDryDate: predictedDryDates[sensor.eui]
                                 )
                                 .contentShape(Rectangle())
                             }
@@ -174,6 +187,7 @@ struct SensorsView: View {
         .dsBackground()
         .refreshable {
             await viewModel.loadSensors(modelContext: modelContext, forceRefresh: true)
+            computePredictions()
         }
     }
 

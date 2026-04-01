@@ -11,6 +11,7 @@ final class GraphsViewModel {
     var readingsByEUI: [String: [SensorReading]] = [:]
     var zoneGroups: [ZoneGroup] = []
     var zoneConfigs: [ZoneConfig] = []
+    var wateringEvents: [RachioWateringEvent] = []
     var isLoading: Bool = false
     var isFetchingData: Bool = false  // true while network fetch in-progress
     var errorMessage: String? = nil
@@ -106,6 +107,10 @@ final class GraphsViewModel {
         // Then fetch fresh data in background — update graphs when done
         isFetchingData = true
         await GraphDataPrefetcher.shared.fetchIfNeeded(modelContext: modelContext)
+        if let devices = try? await RachioAPI.shared.getDevices(),
+           let deviceId = devices.first?.id {
+            wateringEvents = (try? await RachioAPI.shared.getWateringEvents(deviceId: deviceId)) ?? []
+        }
         reloadReadings(modelContext: modelContext)
         lastFetchedAt = Date()
         isFetchingData = false

@@ -8,6 +8,15 @@ struct GraphsView: View {
     @State private var viewModel = GraphsViewModel()
     @State private var syncFlash: Bool = false
 
+    private func events(forZoneId zoneId: String) -> [RachioWateringEvent] {
+        viewModel.wateringEvents.filter { $0.zoneId == zoneId }
+    }
+
+    private func events(forSensors sensors: [SensorConfig]) -> [RachioWateringEvent] {
+        let zoneIds = Set(sensors.compactMap { $0.linkedZoneId })
+        return viewModel.wateringEvents.filter { zoneIds.contains($0.zoneId) }
+    }
+
     var body: some View {
         NavigationStack {
             Group {
@@ -63,6 +72,7 @@ struct GraphsView: View {
                                 title: zone.name,
                                 sensors: viewModel.sensors(linkedTo: zone.id),
                                 readingsByEUI: viewModel.readingsByEUI,
+                                wateringEvents: events(forZoneId: zone.id),
                                                                 chartPeriod: $chartPeriod,
                                 isFetching: viewModel.isFetchingData,
                                 syncFlash: $syncFlash
@@ -73,6 +83,7 @@ struct GraphsView: View {
                                 title: "Unlinked Sensors",
                                 sensors: viewModel.unlinkedSensors,
                                 readingsByEUI: viewModel.readingsByEUI,
+                                wateringEvents: [],
                                                                 chartPeriod: $chartPeriod,
                                 isFetching: viewModel.isFetchingData,
                                 syncFlash: $syncFlash
@@ -87,6 +98,7 @@ struct GraphsView: View {
                                     title: group.name,
                                     sensors: groupSensors,
                                     readingsByEUI: viewModel.readingsByEUI,
+                                wateringEvents: events(forSensors: groupSensors),
                                                                         chartPeriod: $chartPeriod,
                                 isFetching: viewModel.isFetchingData,
                                 syncFlash: $syncFlash
@@ -99,6 +111,7 @@ struct GraphsView: View {
                                 title: zone.name,
                                 sensors: viewModel.sensors(linkedTo: zone.id),
                                 readingsByEUI: viewModel.readingsByEUI,
+                                wateringEvents: events(forZoneId: zone.id),
                                                                 chartPeriod: $chartPeriod,
                                 isFetching: viewModel.isFetchingData,
                                 syncFlash: $syncFlash
@@ -109,6 +122,7 @@ struct GraphsView: View {
                                 title: "Unlinked Sensors",
                                 sensors: viewModel.unlinkedSensors,
                                 readingsByEUI: viewModel.readingsByEUI,
+                                wateringEvents: [],
                                                                 chartPeriod: $chartPeriod,
                                 isFetching: viewModel.isFetchingData,
                                 syncFlash: $syncFlash

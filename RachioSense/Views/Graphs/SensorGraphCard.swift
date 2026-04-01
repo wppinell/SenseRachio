@@ -5,6 +5,7 @@ struct SensorGraphCard: View {
     let title: String
     let sensors: [SensorConfig]
     let readingsByEUI: [String: [SensorReading]]   // direct data — SwiftUI observes changes
+    var wateringEvents: [RachioWateringEvent] = [] // events for zones linked to this card's sensors
     @Binding var chartPeriod: String
     var showPeriodPicker: Bool = true
     var isFetching: Bool = false
@@ -117,6 +118,11 @@ struct SensorGraphCard: View {
         return values
     }
 
+    private var visibleWateringEvents: [RachioWateringEvent] {
+        let cutoff = cutoffDate(for: localPeriod)
+        return wateringEvents.filter { $0.startDate >= cutoff && $0.startDate <= Date() }
+    }
+
     private var hasData: Bool {
         sensors.contains { readings(for: $0.eui).count >= 2 }
     }
@@ -213,6 +219,18 @@ struct SensorGraphCard: View {
                 )
                 .foregroundStyle(color(for: point.colorIndex))
                 .interpolationMethod(.linear)
+            }
+
+            // Watering event markers — vertical cyan lines
+            ForEach(visibleWateringEvents) { event in
+                RuleMark(x: .value("Watered", event.startDate))
+                    .foregroundStyle(Color.cyan.opacity(0.5))
+                    .lineStyle(StrokeStyle(lineWidth: 1.5))
+                    .annotation(position: .top, spacing: 0) {
+                        Image(systemName: "drop.fill")
+                            .font(.system(size: 7))
+                            .foregroundStyle(Color.cyan.opacity(0.8))
+                    }
             }
 
             // Auto-water threshold — red

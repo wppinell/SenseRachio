@@ -105,6 +105,45 @@ final class SensorsViewModel {
         }
     }
 
+    // MARK: - Predictive Dry Date
+
+    /// Estimate when a sensor will hit the dry threshold based on recent decline rate.
+    /// Uses readings from the last 24h, returns nil if trending up or insufficient data.
+    func predictedDryDate(for eui: String, dryThreshold: Double, modelContext: ModelContext) -> Date? {
+        let cutoff = Date().addingTimeInterval(-24 * 3600)
+        let descriptor = FetchDescriptor<SensorReading>(
+            predicate: #Predicate { $0.eui == eui && $0.recordedAt > cutoff },
+            sortBy: [SortDescriptor(\SensorReading.recordedAt)]
+        )
+        let recent = (try? modelContext.fetch(descriptor)) ?? []
+        guard recent.count >= 4 else { return nil }
+
+        // Use linear regression on last 24h to find moisture decline rate (% per second)
+        let n = Double(recent.count)
+        let xs = recent.map { $0.recordedAt.timeIntervalSinceReferenceDate }
+        let ys = recent.map { $0.moisture }
+        let xMean = xs.reduce(0, +) / n
+        let yMean = ys.reduce(0, +) / n
+        let num = zip(xs, ys).reduce(0.0) { $0 + ($1.0 - xMean) * ($1.1 - yMean) }
+        let den = xs.reduce(0.0) { $0 + ($1 - xMean) * ($1 - xMean) }
+        guard den > 0 else { return nil }
+        let slope = num / den  // % per second
+
+        // Only predict if trending downward
+        guard slope < -0.000001 else { return nil }
+
+        // Current moisture (latest reading)
+        guard let latest = recent.last else { return nil }
+        let current = latest.moisture
+        guard current > dryThreshold else { return nil } // already dry
+
+        // Time until it hits dryThreshold at current rate
+        let secondsUntilDry = (current - dryThreshold) / (-slope)
+        guard secondsUntilDry > 0, secondsUntilDry < 7 * 86400 else { return nil } // max 7 days out
+
+        return Date().addingTimeInterval(secondsUntilDry)
+    }
+
     // MARK: - Moisture Color
 
     static func moistureColor(for moisture: Double) -> String {
