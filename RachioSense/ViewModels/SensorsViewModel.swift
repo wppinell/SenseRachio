@@ -11,11 +11,17 @@ final class SensorsViewModel {
     var readings: [String: SensorReading] = [:]
     var isLoading: Bool = false
     var errorMessage: String? = nil
+    private var lastLoadedAt: Date? = nil
+    private let reloadInterval: TimeInterval = 300 // 5 minutes
 
     // MARK: - Load Sensors
 
     @MainActor
-    func loadSensors(modelContext: ModelContext) async {
+    func loadSensors(modelContext: ModelContext, forceRefresh: Bool = false) async {
+        // Skip if recently loaded
+        if !forceRefresh, let last = lastLoadedAt, Date().timeIntervalSince(last) < reloadInterval, !sensors.isEmpty {
+            return
+        }
         isLoading = true
         errorMessage = nil
 
@@ -90,6 +96,7 @@ final class SensorsViewModel {
 
             self.sensors = sortedConfigs
             self.readings = newReadings
+            self.lastLoadedAt = Date()
             self.isLoading = false
         } catch {
             Self.logger.error("Failed to load sensors: \(error.localizedDescription)")

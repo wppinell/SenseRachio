@@ -173,7 +173,7 @@ struct SensorsView: View {
         }
         .dsBackground()
         .refreshable {
-            await viewModel.loadSensors(modelContext: modelContext)
+            await viewModel.loadSensors(modelContext: modelContext, forceRefresh: true)
         }
     }
 

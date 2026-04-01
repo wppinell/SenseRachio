@@ -91,7 +91,17 @@ final class SenseCraftAPI {
 
     // MARK: - List Devices
 
-    func listDevices() async throws -> [SenseCraftDevice] {
+    private var cachedDevices: [SenseCraftDevice]? = nil
+    private var deviceCacheTimestamp: Date? = nil
+    private let deviceCacheTTL: TimeInterval = 600 // 10 minutes
+
+    func listDevices(forceRefresh: Bool = false) async throws -> [SenseCraftDevice] {
+        if !forceRefresh,
+           let cached = cachedDevices,
+           let ts = deviceCacheTimestamp,
+           Date().timeIntervalSince(ts) < deviceCacheTTL {
+            return cached
+        }
         let request = try makeAuthenticatedRequest(path: "/list_devices")
         let (data, response) = try await session.data(for: request)
 
@@ -109,7 +119,7 @@ final class SenseCraftAPI {
                 throw SenseCraftAPIError.apiError(msg)
             }
             let items = decoded.data ?? []
-            return items.map { item in
+            let result = items.map { item in
                 SenseCraftDevice(
                     deviceEui: item.deviceEui,
                     deviceName: item.deviceName ?? item.deviceEui,
@@ -117,6 +127,9 @@ final class SenseCraftAPI {
                     daysUntilExpiry: item.daysUntilExpiry
                 )
             }
+            cachedDevices = result
+            deviceCacheTimestamp = Date()
+            return result
         } catch let error as SenseCraftAPIError {
             throw error
         } catch {

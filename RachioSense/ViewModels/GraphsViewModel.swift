@@ -70,7 +70,10 @@ final class GraphsViewModel {
     // MARK: - Data Loading
 
     @MainActor
-    func load(modelContext: ModelContext) async {
+    func load(modelContext: ModelContext, forceRefresh: Bool = false) async {
+        // Skip if already loaded with data
+        if !forceRefresh && !sensors.isEmpty && !zoneConfigs.isEmpty { return }
+
         isLoading = true
         errorMessage = nil
 

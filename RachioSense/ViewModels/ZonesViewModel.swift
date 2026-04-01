@@ -11,7 +11,13 @@ final class ZonesViewModel {
 
     // MARK: - Load Zones
 
+    private var lastLoadedAt: Date? = nil
+
     func loadZones(modelContext: ModelContext, forceRefresh: Bool = false) async {
+        // Skip if recently loaded and not forced
+        if !forceRefresh, let last = lastLoadedAt, Date().timeIntervalSince(last) < 300, !devices.isEmpty {
+            return
+        }
         await MainActor.run { isLoading = true; errorMessage = nil }
 
         do {
@@ -37,6 +43,7 @@ final class ZonesViewModel {
 
             await MainActor.run {
                 self.devices = fetchedDevices
+                self.lastLoadedAt = Date()
                 self.isLoading = false
             }
         } catch {

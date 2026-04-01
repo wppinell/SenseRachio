@@ -8,6 +8,7 @@ struct SensorGraphCard: View {
     @Binding var chartPeriod: String
     var showPeriodPicker: Bool = true
     var isFetching: Bool = false
+    @Binding var syncFlash: Bool
     @AppStorage(AppStorageKey.graphYMin) private var graphYMin = 15.0
     @AppStorage(AppStorageKey.graphYMax) private var graphYMax = 45.0
     @AppStorage(AppStorageKey.autoWaterThreshold) private var autoWaterThreshold: Double = 20
@@ -15,7 +16,6 @@ struct SensorGraphCard: View {
     @AppStorage(AppStorageKey.lowThreshold) private var highThreshold: Double = 40
 
     @State private var localPeriod: String = "4d" // per-card — single tap changes only this
-    @State private var syncFlash: Bool = false    // brief visual feedback on double-tap
 
     // Shared color palette for multi-sensor lines
     static let lineColors: [Color] = [
@@ -126,7 +126,7 @@ struct SensorGraphCard: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: DS.Spacing.md) {
+        VStack(alignment: .leading, spacing: DS.Spacing.sm) {
             headerRow
             if hasData {
                 chartView
@@ -135,7 +135,8 @@ struct SensorGraphCard: View {
                 emptyState
             }
         }
-        .padding(DS.Spacing.lg)
+        .padding(.horizontal, DS.Spacing.md)
+        .padding(.vertical, DS.Spacing.sm)
         .dsCard()
         .onAppear {
             localPeriod = chartPeriod
@@ -144,28 +145,17 @@ struct SensorGraphCard: View {
             // External broadcast (double-tap on another card) → sync local
             localPeriod = newVal
         }
-        .overlay(alignment: .topTrailing) {
-            if syncFlash {
-                Text("Synced")
-                    .font(DS.Font.footnote)
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(DS.Color.accent.opacity(0.85), in: RoundedRectangle(cornerRadius: 6))
-                    .padding(DS.Spacing.md)
-                    .transition(.opacity)
-            }
-        }
         .animation(.easeInOut(duration: 0.2), value: syncFlash)
     }
 
     // MARK: - Subviews
 
     private var headerRow: some View {
-        HStack {
+        HStack(alignment: .center) {
             Text(title)
-                .font(DS.Font.cardTitle)
+                .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(DS.Color.textPrimary)
+                .lineLimit(1)
             Spacer()
             if showPeriodPicker {
                 periodPicker
@@ -177,10 +167,10 @@ struct SensorGraphCard: View {
         HStack(spacing: 2) {
             ForEach(["1d", "2d", "4d", "5d", "1w"], id: \.self) { period in
                 Text(period)
-                    .font(.system(size: 12, weight: localPeriod == period ? .semibold : .regular))
+                    .font(.system(size: 11, weight: localPeriod == period ? .semibold : .regular))
                     .foregroundStyle(localPeriod == period ? .white : DS.Color.textSecondary)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 5)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 3)
                     .background(
                         RoundedRectangle(cornerRadius: 6)
                             .fill(localPeriod == period ? DS.Color.accent : Color.clear)
@@ -205,6 +195,12 @@ struct SensorGraphCard: View {
         }
         .padding(3)
         .background(DS.Color.background, in: RoundedRectangle(cornerRadius: 8))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .strokeBorder(DS.Color.accent, lineWidth: 2)
+                .opacity(syncFlash ? 1 : 0)
+                .animation(.easeInOut(duration: 0.25), value: syncFlash)
+        )
     }
 
     private var chartView: some View {
@@ -232,7 +228,7 @@ struct SensorGraphCard: View {
                 .foregroundStyle(Color(hex: "0EA5E9").opacity(0.6))
                 .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 4]))
         }
-        .frame(height: 160)
+        .frame(height: 200)
         .chartXScale(domain: periodStart...Date())
         .chartXAxis {
             AxisMarks(values: .stride(by: xAxisStride)) { value in
@@ -254,20 +250,18 @@ struct SensorGraphCard: View {
     }
 
     private var legendView: some View {
-        LazyVGrid(
-            columns: [GridItem(.flexible()), GridItem(.flexible())],
-            spacing: DS.Spacing.xs
-        ) {
-            ForEach(Array(sensors.enumerated()), id: \.element.id) { index, sensor in
-                HStack(spacing: DS.Spacing.xs) {
-                    RoundedRectangle(cornerRadius: 2)
-                        .fill(color(for: index))
-                        .frame(width: 12, height: 4)
-                    Text(sensor.displayName)
-                        .font(DS.Font.footnote)
-                        .foregroundStyle(DS.Color.textSecondary)
-                        .lineLimit(1)
-                    Spacer()
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: DS.Spacing.sm) {
+                ForEach(Array(sensors.enumerated()), id: \.element.id) { index, sensor in
+                    HStack(spacing: 4) {
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(color(for: index))
+                            .frame(width: 10, height: 3)
+                        Text(sensor.displayName)
+                            .font(.system(size: 10))
+                            .foregroundStyle(DS.Color.textSecondary)
+                            .lineLimit(1)
+                    }
                 }
             }
         }

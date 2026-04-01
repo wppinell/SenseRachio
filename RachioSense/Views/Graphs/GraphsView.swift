@@ -6,6 +6,7 @@ struct GraphsView: View {
     @AppStorage(AppStorageKey.trendChartPeriod) private var chartPeriod = "4d"
 
     @State private var viewModel = GraphsViewModel()
+    @State private var syncFlash: Bool = false
 
     var body: some View {
         NavigationStack {
@@ -63,7 +64,8 @@ struct GraphsView: View {
                                 sensors: viewModel.sensors(linkedTo: zone.id),
                                 readingsByEUI: viewModel.readingsByEUI,
                                                                 chartPeriod: $chartPeriod,
-                                isFetching: viewModel.isFetchingData
+                                isFetching: viewModel.isFetchingData,
+                                syncFlash: $syncFlash
                             )
                         }
                         if !viewModel.unlinkedSensors.isEmpty {
@@ -72,7 +74,8 @@ struct GraphsView: View {
                                 sensors: viewModel.unlinkedSensors,
                                 readingsByEUI: viewModel.readingsByEUI,
                                                                 chartPeriod: $chartPeriod,
-                                isFetching: viewModel.isFetchingData
+                                isFetching: viewModel.isFetchingData,
+                                syncFlash: $syncFlash
                             )
                         }
                     } else {
@@ -85,7 +88,8 @@ struct GraphsView: View {
                                     sensors: groupSensors,
                                     readingsByEUI: viewModel.readingsByEUI,
                                                                         chartPeriod: $chartPeriod,
-                                isFetching: viewModel.isFetchingData
+                                isFetching: viewModel.isFetchingData,
+                                syncFlash: $syncFlash
                                 )
                             }
                         }
@@ -96,7 +100,8 @@ struct GraphsView: View {
                                 sensors: viewModel.sensors(linkedTo: zone.id),
                                 readingsByEUI: viewModel.readingsByEUI,
                                                                 chartPeriod: $chartPeriod,
-                                isFetching: viewModel.isFetchingData
+                                isFetching: viewModel.isFetchingData,
+                                syncFlash: $syncFlash
                             )
                         }
                         if !viewModel.unlinkedSensors.isEmpty {
@@ -105,7 +110,8 @@ struct GraphsView: View {
                                 sensors: viewModel.unlinkedSensors,
                                 readingsByEUI: viewModel.readingsByEUI,
                                                                 chartPeriod: $chartPeriod,
-                                isFetching: viewModel.isFetchingData
+                                isFetching: viewModel.isFetchingData,
+                                syncFlash: $syncFlash
                             )
                         }
                     }
