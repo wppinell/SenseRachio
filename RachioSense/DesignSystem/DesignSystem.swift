@@ -124,6 +124,9 @@ enum AppStorageKey {
     static let quietHoursEnabled       = "notif_quiet_hours"
     static let quietHoursStartHour     = "notif_quiet_start_hour"      // Int
     static let quietHoursEndHour       = "notif_quiet_end_hour"
+    static let notificationCooldownHours  = "notif_cooldown_hours"      // Int default 4
+    static let predictiveAlertEnabled     = "notif_predictive_alert"    // Bool default true
+    static let predictiveAlertWindowHours = "notif_predictive_window"   // Int default 6
 
     // Refresh Rate
     static let foregroundRefresh       = "refresh_foreground"          // Int seconds: 15|30|60|300

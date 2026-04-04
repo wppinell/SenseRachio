@@ -6,6 +6,9 @@ struct NotificationsSettingsView: View {
     @AppStorage(AppStorageKey.dryAlertsEnabled) private var dryAlerts = true
     @AppStorage(AppStorageKey.lowAlertsEnabled) private var lowAlerts = true
     @AppStorage(AppStorageKey.sensorOfflineEnabled) private var sensorOffline = true
+    @AppStorage(AppStorageKey.predictiveAlertEnabled) private var predictiveAlerts = true
+    @AppStorage(AppStorageKey.predictiveAlertWindowHours) private var predictiveWindow = 6
+    @AppStorage(AppStorageKey.notificationCooldownHours) private var cooldownHours = 4
 
     // Zone Activity
     @AppStorage(AppStorageKey.zoneStartedEnabled) private var zoneStarted = false
@@ -58,14 +61,37 @@ struct NotificationsSettingsView: View {
 
             // Alerts
             Section {
-                Toggle("Dry Alerts", isOn: $dryAlerts)
+                Toggle("Critical Alerts", isOn: $dryAlerts)
                     .tint(DS.Color.error)
                 Toggle("Low Alerts", isOn: $lowAlerts)
                     .tint(DS.Color.warning)
                 Toggle("Sensor Offline", isOn: $sensorOffline)
                     .tint(DS.Color.textSecondary)
+                Toggle("Predictive Alerts", isOn: $predictiveAlerts)
+                    .tint(DS.Color.accent)
+                if predictiveAlerts {
+                    Picker("Alert window", selection: $predictiveWindow) {
+                        Text("2 hours").tag(2)
+                        Text("4 hours").tag(4)
+                        Text("6 hours").tag(6)
+                        Text("12 hours").tag(12)
+                    }
+                    .foregroundStyle(DS.Color.textSecondary)
+                }
             } header: { Text("Sensor Alerts") }
-             footer: { Text("Alerts fire when soil moisture reaches the configured threshold levels.") }
+             footer: { Text("Critical and Low alerts fire when moisture has already crossed a threshold. Predictive alerts warn you ahead of time when a sensor is trending toward critical or dry.") }
+
+            // Cooldown
+            Section {
+                Picker("Alert cooldown", selection: $cooldownHours) {
+                    Text("2 hours").tag(2)
+                    Text("4 hours").tag(4)
+                    Text("6 hours").tag(6)
+                    Text("12 hours").tag(12)
+                    Text("24 hours").tag(24)
+                }
+            } header: { Text("Cooldown") }
+             footer: { Text("Minimum time between repeated alerts for the same sensor. Prevents notification spam when moisture stays low for extended periods.") }
 
             // Zone Activity
             Section {
