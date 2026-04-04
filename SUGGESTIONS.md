@@ -4,6 +4,99 @@ This file captures architectural suggestions and feature ideas specific to the c
 
 ---
 
+## 🔴 Fresh Code Review — April 2026
+
+Issues found in this pass. Severity ratings: **Bug** = can misbehave at runtime; **Fragile** = correct today but breaks under plausible future conditions; **Design** = no current misbehavior, but creates maintenance risk.
+
+---
+
+### Bug — `RachioAPI` rate-limit reset timestamp fails to parse when fractional seconds are present
+**File:** `Services/RachioAPI.swift` (~line 286)
+**Severity:** Bug — silent API abuse when Rachio returns a 429
+
+`ISO8601DateFormatter()` with default options does not parse timestamps that include fractional seconds (e.g. `2026-04-04T10:30:00.000Z`). If Rachio sends this format, `formatter.date(from: resetStr)` returns `nil`, `rateLimitedUntil` is never set, and the app continues firing requests past the 429 limit.
+
+**Fix:**
+```swift
+let formatter = ISO8601DateFormatter()
+formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+```
+Or try both formatters in sequence:
+```swift
+let formatter1 = ISO8601DateFormatter()
+let formatter2 = ISO8601DateFormatter()
+formatter2.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+let resetDate = formatter1.date(from: resetStr) ?? formatter2.date(from: resetStr)
+```
+
+---
+
+### Bug — `LiveReadingsCache.getReadings(hiddenEuis:)` ignores `hiddenEuis` for coalesced callers
+**File:** `Services/LiveReadingsCache.swift` (~line 43-47)
+**Severity:** Logic bug — callers that coalesce onto an in-flight fetch receive results filtered by the *first* caller's hidden sensor set, not their own.
+
+When `isFetching == true`, a second caller appends a `CheckedContinuation` and awaits. When the fetch finishes, all waiting continuations get the same `result` computed from the first caller's `hiddenEuis`. The second caller's `hiddenEuis` argument is silently dropped.
+
+In the current codebase, all callers pass the same hidden set so this is not visible. But if any future caller uses a different set (e.g. a widget extension or diagnostics view), it will receive wrong data.
+
+**Fix:** Either ignore `hiddenEuis` entirely and filter at the call site, or store waiting continuations with their requested filter and apply per-caller filtering after the fetch resolves.
+
+---
+
+### Bug — `checkZoneSkips()` records Rachio success timestamp before all API calls complete
+**File:** `Background/BackgroundRefreshManager.swift` (~line 410)
+**Severity:** Minor logic — service-disconnect alert timer resets even on partial failures
+
+`notif_rachio_last_success` is written immediately after `getDevices()` succeeds, before `getRainSkips(deviceId:days:)` is called. If `getRainSkips` throws, the success timestamp was already updated, silencing any service-disconnect alert for the next 6 hours. This matters if rain-skip polling is flakier than device polling (e.g. a specific endpoint outage).
+
+**Fix:** Only write the success timestamp after all per-device Rachio calls in a given cycle complete without throwing.
+
+---
+
+### Fragile — `LocationManager` timeout task is not stored or cancelled
+**File:** `Services/LocationManager.swift` (~line 103)
+**Severity:** Fragile — correct in current usage; crashes under a specific edge case
+
+`requestLocation()` spawns an unstructured `Task` for the 10-second timeout but does not store a reference to it. If `requestLocation()` were called a second time before the first timeout fires (e.g. due to a retry added in the future), the first timeout task wakes up, sees a non-nil `locationContinuation` (pointing at the *new* request), nils it, and resumes the new continuation with `nil` — silently killing the second location request.
+
+**Fix:** Store the timeout task in a property and cancel it on success:
+```swift
+private var locationTimeoutTask: Task<Void, Never>?
+
+// in requestLocation(), on success path:
+locationTimeoutTask?.cancel()
+locationTimeoutTask = nil
+```
+
+---
+
+### Design — `SensorSummaryData.driest` uses a named tuple
+**File:** `Background/BackgroundRefreshManager.swift` (top-level struct)
+**Severity:** Design — named tuples cannot conform to protocols; blocks future Sendable verification and testing
+
+`let driest: (name: String, eui: String, moisture: Double)?` works fine today but will cause issues if you ever need to store it in a collection, pass it to a generic, or add Codable conformance. Swift's named-tuple Sendable inference is also under-specified.
+
+**Fix:** Replace with a small struct:
+```swift
+struct DriestSensor: Sendable {
+    let name: String
+    let eui: String
+    let moisture: Double
+}
+```
+
+---
+
+### Design — `checkZoneNotifications()` and `checkZoneSkips()` both call `getDevices()` independently
+**File:** `Background/BackgroundRefreshManager.swift`
+**Severity:** Design — wasteful even with caching; second call adds a cache-lookup hop and a potential 5-minute stale data gap
+
+Both methods hit `RachioAPI.shared.getDevices()`. The actor cache prevents double network I/O, but the two callers are logically coupled (both need the same device snapshot per refresh cycle) and should share a single result.
+
+**Fix:** Fetch devices once in `performRefresh()` and pass the result to both `checkZoneNotifications(devices:)` and `checkZoneSkips(devices:)` as a parameter. Eliminates the coupling and removes the redundant `notif_rachio_last_success` write in `checkZoneSkips()`.
+
+---
+
 ## 🔴 High Priority — Bugs & Technical Debt
 
 ### ✅ Graphs: Complete 7-Day History with Per-Sensor Coverage — COMPLETED
