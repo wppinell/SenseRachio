@@ -96,7 +96,8 @@ final class WeatherAPI {
         dateFormatter.dateFormat = "yyyy-MM-dd"
         
         var daily: [DailyForecast] = []
-        for i in 0..<min(dates.count, 7) {
+        let safeCount = min(dates.count, highs.count, lows.count, codes.count, precip.count, 7)
+        for i in 0..<safeCount {
             guard let date = dateFormatter.date(from: dates[i]) else { continue }
             let precipAmount = precip[i] > 0 ? precip[i] : nil
             daily.append(DailyForecast(

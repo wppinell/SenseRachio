@@ -10,7 +10,7 @@ Issues found in the second review pass.
 
 ---
 
-### Bug — `WeatherAPI` crashes when daily forecast arrays have mismatched lengths
+### ✅ Bug — `WeatherAPI` crashes when daily forecast arrays have mismatched lengths — FIXED
 **File:** `Services/WeatherAPI.swift` (~line 99)
 **Severity:** Bug — crash on malformed Open-Meteo response
 
@@ -35,7 +35,7 @@ One-liner. Also consider logging a warning if the counts don't match so it's vis
 
 ---
 
-### Bug — `SensorsViewModel` inserts duplicate `SensorReading` rows on every foreground refresh
+### ✅ Bug — `SensorsViewModel` inserts duplicate `SensorReading` rows on every foreground refresh — FIXED
 **Files:** `ViewModels/SensorsViewModel.swift` (~line 78), `Services/LiveReadingsCache.swift`
 **Severity:** Bug — database bloat, corrupts graph accuracy over time
 
@@ -61,7 +61,7 @@ if existing == nil {
 
 ---
 
-### Bug — "Zone Started" toggle is dead code; users enabling it see nothing
+### ✅ Bug — "Zone Started" toggle is dead code; users enabling it see nothing — FIXED
 **File:** `Views/Settings/Configuration/NotificationsSettingsView.swift` (~line 98), `DesignSystem/DesignSystem.swift`
 **Severity:** Bug — misleading UI; user enables a toggle that never fires
 

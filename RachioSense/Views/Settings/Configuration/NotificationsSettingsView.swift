@@ -11,7 +11,6 @@ struct NotificationsSettingsView: View {
     @AppStorage(AppStorageKey.notificationCooldownHours) private var cooldownHours = 4
 
     // Zone Activity
-    @AppStorage(AppStorageKey.zoneStartedEnabled) private var zoneStarted = false
     @AppStorage(AppStorageKey.zoneStoppedEnabled) private var zoneStopped = false
     @AppStorage(AppStorageKey.scheduleRunEnabled) private var scheduleRun = false
     @AppStorage(AppStorageKey.zoneSkipEnabled) private var zoneSkip = true
@@ -99,8 +98,6 @@ struct NotificationsSettingsView: View {
 
             // Zone Activity
             Section {
-                Toggle("Zone Started", isOn: $zoneStarted)
-                    .tint(DS.Color.online)
                 Toggle("Zone Stopped", isOn: $zoneStopped)
                     .tint(DS.Color.accent)
                 Toggle("Scheduled Run", isOn: $scheduleRun)

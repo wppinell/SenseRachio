@@ -74,13 +74,21 @@ final class SensorsViewModel {
             var newReadings: [String: SensorReading] = storedLatest
 
             for (eui, reading) in cachedReadings {
-                // Also persist to SwiftData
-                modelContext.insert(SensorReading(
-                    eui: reading.eui,
-                    moisture: reading.moisture,
-                    tempC: reading.tempC,
-                    recordedAt: reading.recordedAt
-                ))
+                // Persist to SwiftData, skipping duplicates within the cache TTL window
+                let rEui = reading.eui
+                let cutoff = reading.recordedAt.addingTimeInterval(-60)
+                let dupCheck = FetchDescriptor<SensorReading>(
+                    predicate: #Predicate { $0.eui == rEui && $0.recordedAt >= cutoff }
+                )
+                let alreadyStored = (try? modelContext.fetch(dupCheck))?.isEmpty ?? true
+                if alreadyStored {
+                    modelContext.insert(SensorReading(
+                        eui: reading.eui,
+                        moisture: reading.moisture,
+                        tempC: reading.tempC,
+                        recordedAt: reading.recordedAt
+                    ))
+                }
                 newReadings[eui] = reading
             }
             _ = try? modelContext.save()
