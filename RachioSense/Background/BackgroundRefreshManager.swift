@@ -3,6 +3,17 @@ import BackgroundTasks
 import SwiftData
 import os
 
+// MARK: - Sensor Summary Data
+
+struct SensorSummaryData: Sendable {
+    let healthy: Int
+    let low: Int
+    let critical: Int
+    let totalMoisture: Double
+    let totalCount: Int
+    let driest: (name: String, eui: String, moisture: Double)?
+}
+
 // MARK: - Background Model Actor
 
 /// ModelActor for thread-safe SwiftData access in background tasks.
@@ -27,6 +38,53 @@ actor BackgroundModelActor {
 
     func save() throws {
         try modelContext.save()
+    }
+
+    // MARK: - Last Reading Date
+
+    func latestReadingDate(eui: String) -> Date? {
+        var descriptor = FetchDescriptor<SensorReading>(
+            predicate: #Predicate { $0.eui == eui },
+            sortBy: [SortDescriptor(\SensorReading.recordedAt, order: .reverse)]
+        )
+        descriptor.fetchLimit = 1
+        return (try? modelContext.fetch(descriptor))?.first?.recordedAt
+    }
+
+    // MARK: - Sensor Summary
+
+    func sensorSummary(dryThreshold: Double, criticalThreshold: Double) -> SensorSummaryData {
+        let configs = (try? modelContext.fetch(FetchDescriptor<SensorConfig>())) ?? []
+        var healthy = 0, low = 0, critical = 0
+        var totalMoisture = 0.0
+        var count = 0
+        var driest: (name: String, eui: String, moisture: Double)? = nil
+
+        for config in configs where !config.isHiddenFromGraphs {
+            var desc = FetchDescriptor<SensorReading>(
+                predicate: #Predicate { $0.eui == config.eui },
+                sortBy: [SortDescriptor(\SensorReading.recordedAt, order: .reverse)]
+            )
+            desc.fetchLimit = 1
+            guard let reading = (try? modelContext.fetch(desc))?.first else { continue }
+
+            let m = reading.moisture
+            totalMoisture += m
+            count += 1
+
+            if m < criticalThreshold      { critical += 1 }
+            else if m < dryThreshold      { low += 1 }
+            else                          { healthy += 1 }
+
+            if driest == nil || m < driest!.moisture {
+                driest = (name: config.displayName, eui: config.eui, moisture: m)
+            }
+        }
+
+        return SensorSummaryData(
+            healthy: healthy, low: low, critical: critical,
+            totalMoisture: totalMoisture, totalCount: count, driest: driest
+        )
     }
 
     // MARK: - Predictive Dry Date
@@ -152,7 +210,7 @@ final class BackgroundRefreshManager: Sendable {
             return
         }
 
-        // Read thresholds from UserDefaults (with sensible defaults)
+        // Read thresholds (with sensible defaults)
         let dryThreshold      = UserDefaults.standard.double(forKey: AppStorageKey.dryThreshold)
         let criticalThreshold = UserDefaults.standard.double(forKey: AppStorageKey.autoWaterThreshold)
         let effectiveDry      = dryThreshold > 0      ? dryThreshold      : 25.0
@@ -167,9 +225,9 @@ final class BackgroundRefreshManager: Sendable {
                 for: SensorConfig.self, ZoneConfig.self, SensorReading.self
             )
             let actor = BackgroundModelActor(modelContainer: container)
-
             let sensorConfigs = try await actor.fetchSensorConfigs()
 
+            // --- Fetch sensor readings concurrently ---
             struct FetchedReading: Sendable {
                 let eui: String
                 let moisture: Double
@@ -179,65 +237,50 @@ final class BackgroundRefreshManager: Sendable {
             }
 
             let fetchedReadings: [FetchedReading] = await withTaskGroup(of: FetchedReading?.self) { group in
-                for config in sensorConfigs {
-                    if config.isHidden { continue }
-                    let eui    = config.eui
-                    let name   = config.name
-                    let zoneId = config.linkedZoneId
+                for config in sensorConfigs where !config.isHidden {
+                    let eui = config.eui; let name = config.name; let zoneId = config.linkedZoneId
                     group.addTask {
                         do {
                             let reading = try await SenseCraftAPI.shared.fetchReading(eui: eui)
                             guard let moisture = reading.moisture else { return nil }
-                            return FetchedReading(
-                                eui: eui,
-                                moisture: moisture,
-                                tempC: reading.tempC ?? 0,
-                                configName: name,
-                                linkedZoneId: zoneId
-                            )
+                            return FetchedReading(eui: eui, moisture: moisture,
+                                                  tempC: reading.tempC ?? 0,
+                                                  configName: name, linkedZoneId: zoneId)
                         } catch {
-                            Self.logger.error("Error fetching reading for \(eui): \(error.localizedDescription)")
+                            Self.logger.error("Error fetching \(eui): \(error.localizedDescription)")
                             return nil
                         }
                     }
                 }
                 var results: [FetchedReading] = []
-                for await result in group {
-                    if let r = result { results.append(r) }
-                }
+                for await r in group { if let r { results.append(r) } }
                 return results
             }
 
             Self.logger.info("Fetched \(fetchedReadings.count) readings in background")
 
-            // Save new readings first so the prediction math sees the latest point
+            // Save first so prediction math and summary see the latest values
             for data in fetchedReadings {
                 await actor.insertReading(eui: data.eui, moisture: data.moisture, tempC: data.tempC)
             }
             try await actor.save()
 
-            // Evaluate notifications after saving
+            // --- Moisture alerts (predictive + threshold) ---
             for data in fetchedReadings {
-                let eui  = data.eui
-                let name = data.configName
+                let eui = data.eui; let name = data.configName
 
-                // --- Predictive alerts (sensor is still above threshold but trending down) ---
-                // Critical takes priority over dry; only fire one predictive alert per sensor.
                 if let hrs = await actor.predictedHoursUntil(threshold: effectiveCritical, eui: eui),
                    hrs <= alertWindow {
-                    Self.logger.info("Predictive critical alert for \(name): \(hrs, format: .fixed(precision: 1))h")
+                    Self.logger.info("Predictive critical: \(name) in \(hrs, format: .fixed(precision: 1))h")
                     NotificationService.shared.schedulePredictiveAlert(
-                        eui: eui, sensorName: name, hoursRemaining: hrs, isCritical: true
-                    )
+                        eui: eui, sensorName: name, hoursRemaining: hrs, isCritical: true)
                 } else if let hrs = await actor.predictedHoursUntil(threshold: effectiveDry, eui: eui),
                           hrs <= alertWindow {
-                    Self.logger.info("Predictive dry alert for \(name): \(hrs, format: .fixed(precision: 1))h")
+                    Self.logger.info("Predictive dry: \(name) in \(hrs, format: .fixed(precision: 1))h")
                     NotificationService.shared.schedulePredictiveAlert(
-                        eui: eui, sensorName: name, hoursRemaining: hrs, isCritical: false
-                    )
+                        eui: eui, sensorName: name, hoursRemaining: hrs, isCritical: false)
                 }
 
-                // --- Threshold alerts (sensor has already crossed a threshold) ---
                 let isCritical = data.moisture < effectiveCritical
                 let isLow      = data.moisture < effectiveDry
                 if isCritical || isLow {
@@ -246,18 +289,143 @@ final class BackgroundRefreshManager: Sendable {
                         zoneName = await actor.fetchZoneName(zoneId: zoneId)
                     }
                     NotificationService.shared.scheduleThresholdAlert(
-                        eui: eui,
-                        sensorName: name,
-                        zoneName: zoneName,
-                        moisture: data.moisture,
-                        isCritical: isCritical
-                    )
+                        eui: eui, sensorName: name, zoneName: zoneName,
+                        moisture: data.moisture, isCritical: isCritical)
                 }
+            }
+
+            // --- Sensor offline check ---
+            let fetchedEUIs = Set(fetchedReadings.map { $0.eui })
+            await checkSensorOffline(fetchedEUIs: fetchedEUIs, allConfigs: sensorConfigs, actor: actor)
+
+            // --- Zone notifications (only if any zone toggle is enabled) ---
+            let wantZone = (UserDefaults.standard.object(forKey: AppStorageKey.zoneStoppedEnabled) as? Bool ?? false)
+                        || (UserDefaults.standard.object(forKey: AppStorageKey.scheduleRunEnabled)  as? Bool ?? false)
+            if wantZone, KeychainService.shared.load(forKey: KeychainKey.rachioAPIKey) != nil {
+                await checkZoneNotifications()
+            }
+
+            // --- Daily summary & weekly report ---
+            let summary = await actor.sensorSummary(dryThreshold: effectiveDry, criticalThreshold: effectiveCritical)
+
+            if UserDefaults.standard.object(forKey: AppStorageKey.dailySummaryEnabled) as? Bool ?? false {
+                checkDailySummary(summary: summary)
+            }
+            if UserDefaults.standard.object(forKey: AppStorageKey.weeklyReportEnabled) as? Bool ?? false {
+                checkWeeklyReport(summary: summary)
             }
 
             Self.logger.info("Background refresh completed successfully")
         } catch {
             Self.logger.error("Background refresh failed: \(error.localizedDescription)")
         }
+    }
+
+    // MARK: - Sensor Offline Check
+
+    private func checkSensorOffline(
+        fetchedEUIs: Set<String>,
+        allConfigs: [(eui: String, name: String, linkedZoneId: String?, isHidden: Bool)],
+        actor: BackgroundModelActor
+    ) async {
+        let offlineThresholdHours = 3.0 // ~3 background cycles
+        let now = Date()
+
+        for config in allConfigs where !config.isHidden {
+            guard !fetchedEUIs.contains(config.eui) else { continue } // got a reading — not offline
+            guard let lastSeen = await actor.latestReadingDate(eui: config.eui) else { continue }
+            let hoursOffline = now.timeIntervalSince(lastSeen) / 3600
+            guard hoursOffline >= offlineThresholdHours else { continue }
+
+            Self.logger.info("Offline alert: \(config.name) last seen \(hoursOffline, format: .fixed(precision: 1))h ago")
+            NotificationService.shared.scheduleSensorOfflineAlert(
+                eui: config.eui, sensorName: config.name, hoursOffline: hoursOffline)
+        }
+    }
+
+    // MARK: - Zone Notifications (polling-based)
+
+    private func checkZoneNotifications() async {
+        do {
+            let devices = try await RachioAPI.shared.getDevices()
+            let wantRan      = UserDefaults.standard.object(forKey: AppStorageKey.zoneStoppedEnabled)  as? Bool ?? false
+            let wantUpcoming = UserDefaults.standard.object(forKey: AppStorageKey.scheduleRunEnabled)   as? Bool ?? false
+
+            for device in devices {
+                for zone in device.zones where zone.enabled {
+
+                    // Zone ran: detect change in lastWateredDate
+                    if wantRan, let lastWatered = zone.lastWateredDate {
+                        let key = "notif_zone_last_watered_\(zone.id)"
+                        let stored = UserDefaults.standard.integer(forKey: key)
+                        if stored > 0 && lastWatered != stored {
+                            let durationMin = (zone.lastWateredDuration ?? 0) / 60
+                            Self.logger.info("Zone ran: \(zone.name) for \(durationMin)m")
+                            NotificationService.shared.scheduleZoneRanAlert(
+                                zoneId: zone.id, zoneName: zone.name, durationMinutes: durationMin)
+                        }
+                        UserDefaults.standard.set(lastWatered, forKey: key)
+                    }
+
+                    // Upcoming run: fire if next run is within 2 hours
+                    if wantUpcoming, let nextRun = device.nextRunDate(forZone: zone) {
+                        let minutesUntil = Int(nextRun.timeIntervalSinceNow / 60)
+                        if minutesUntil > 0 && minutesUntil <= 120 {
+                            Self.logger.info("Upcoming run: \(zone.name) in \(minutesUntil)m")
+                            NotificationService.shared.scheduleUpcomingRunAlert(
+                                zoneId: zone.id, zoneName: zone.name, minutesUntil: minutesUntil)
+                        }
+                    }
+                }
+            }
+        } catch {
+            Self.logger.error("Zone notification check failed: \(error.localizedDescription)")
+        }
+    }
+
+    // MARK: - Daily Summary
+
+    private func checkDailySummary(summary: SensorSummaryData) {
+        guard summary.totalCount > 0, let driest = summary.driest else { return }
+
+        let configuredHour   = UserDefaults.standard.integer(forKey: AppStorageKey.dailySummaryHour)
+        let configuredMinute = UserDefaults.standard.integer(forKey: AppStorageKey.dailySummaryMinute)
+        let cal  = Calendar.current
+        let now  = Date()
+        let hour = cal.component(.hour,   from: now)
+        let min  = cal.component(.minute, from: now)
+
+        // Only fire if it's past the configured time
+        guard hour > configuredHour || (hour == configuredHour && min >= configuredMinute) else { return }
+
+        // Only fire once per day
+        if let lastSent = UserDefaults.standard.object(forKey: "notif_daily_summary_last_sent") as? Date,
+           cal.isDateInToday(lastSent) { return }
+
+        Self.logger.info("Sending daily summary: \(summary.healthy)H \(summary.low)L \(summary.critical)C")
+        NotificationService.shared.sendDailySummary(
+            healthy: summary.healthy, low: summary.low, critical: summary.critical,
+            driestName: driest.name, driestMoisture: driest.moisture)
+    }
+
+    // MARK: - Weekly Report
+
+    private func checkWeeklyReport(summary: SensorSummaryData) {
+        guard summary.totalCount > 0 else { return }
+
+        let targetWeekday = UserDefaults.standard.integer(forKey: AppStorageKey.weeklyReportDay) // 0=Sun
+        let cal     = Calendar.current
+        let today   = cal.component(.weekday, from: Date()) - 1 // convert to 0=Sun
+        guard today == targetWeekday else { return }
+
+        // Only fire once per week
+        if let lastSent = UserDefaults.standard.object(forKey: "notif_weekly_report_last_sent") as? Date,
+           cal.isDate(lastSent, equalTo: Date(), toGranularity: .weekOfYear) { return }
+
+        let avg = summary.totalCount > 0 ? summary.totalMoisture / Double(summary.totalCount) : 0
+        Self.logger.info("Sending weekly report: avg \(avg, format: .fixed(precision: 1))%")
+        NotificationService.shared.sendWeeklyReport(
+            totalSensors: summary.totalCount, avgMoisture: avg,
+            lowCount: summary.low, criticalCount: summary.critical)
     }
 }

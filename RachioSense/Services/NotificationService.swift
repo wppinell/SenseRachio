@@ -130,6 +130,108 @@ final class NotificationService {
         }
     }
 
+    // MARK: - Sensor Offline Alert
+
+    func scheduleSensorOfflineAlert(eui: String, sensorName: String, hoursOffline: Double) {
+        let enabled = UserDefaults.standard.object(forKey: AppStorageKey.sensorOfflineEnabled) as? Bool ?? true
+        guard enabled else { return }
+        guard !isQuietHours() else { return }
+        // Offline state persists; 12h cooldown prevents repeated alerts during outages
+        guard !isOnCooldown(eui: eui, type: "offline", cooldownHours: 12) else { return }
+
+        let content = UNMutableNotificationContent()
+        content.title = "Sensor Offline"
+        content.body  = "\(sensorName) hasn't reported in over \(Int(hoursOffline.rounded()))h."
+        content.sound = .default
+
+        send(identifier: "sensor-offline-\(eui)", content: content) {
+            self.recordSent(eui: eui, type: "offline")
+        }
+    }
+
+    // MARK: - Zone Ran Alert
+
+    /// Fires when a zone's lastWateredDate changed since the previous background refresh,
+    /// indicating a watering cycle completed.
+    func scheduleZoneRanAlert(zoneId: String, zoneName: String, durationMinutes: Int) {
+        let enabled = UserDefaults.standard.object(forKey: AppStorageKey.zoneStoppedEnabled) as? Bool ?? false
+        guard enabled else { return }
+        // 1h cooldown — zones rarely run back-to-back
+        guard !isOnCooldown(eui: zoneId, type: "zone-ran", cooldownHours: 1) else { return }
+
+        let content = UNMutableNotificationContent()
+        content.title = "Zone Finished"
+        let mins = durationMinutes == 1 ? "1 minute" : "\(durationMinutes) minutes"
+        content.body  = "\"\(zoneName)\" ran for \(mins)."
+        content.sound = .default
+
+        send(identifier: "zone-ran-\(zoneId)", content: content) {
+            self.recordSent(eui: zoneId, type: "zone-ran")
+        }
+    }
+
+    // MARK: - Upcoming Scheduled Run Alert
+
+    func scheduleUpcomingRunAlert(zoneId: String, zoneName: String, minutesUntil: Int) {
+        let enabled = UserDefaults.standard.object(forKey: AppStorageKey.scheduleRunEnabled) as? Bool ?? false
+        guard enabled else { return }
+        // Cooldown = effective cooldown — prevents re-alerting every refresh cycle for same run
+        guard !isOnCooldown(eui: zoneId, type: "upcoming-run", cooldownHours: effectiveCooldown()) else { return }
+
+        let content = UNMutableNotificationContent()
+        content.title = "Scheduled Run Soon"
+        let timeText = minutesUntil < 5 ? "a few minutes" : "\(minutesUntil) minutes"
+        content.body  = "\"\(zoneName)\" is scheduled to run in \(timeText)."
+        content.sound = .default
+
+        send(identifier: "upcoming-run-\(zoneId)", content: content) {
+            self.recordSent(eui: zoneId, type: "upcoming-run")
+        }
+    }
+
+    // MARK: - Daily Summary
+
+    func sendDailySummary(healthy: Int, low: Int, critical: Int, driestName: String, driestMoisture: Double) {
+        var parts: [String] = []
+        if healthy > 0  { parts.append("\(healthy) healthy") }
+        if low > 0      { parts.append("\(low) low") }
+        if critical > 0 { parts.append("\(critical) critical") }
+
+        let content = UNMutableNotificationContent()
+        content.title = "RachioSense Daily Summary"
+        content.body  = "\(parts.joined(separator: " · ")) · driest: \(driestName) at \(Int(driestMoisture))%"
+        content.sound = .default
+
+        send(identifier: "daily-summary", content: content) {
+            UserDefaults.standard.set(
+                Calendar.current.startOfDay(for: Date()),
+                forKey: "notif_daily_summary_last_sent"
+            )
+        }
+    }
+
+    // MARK: - Weekly Report
+
+    func sendWeeklyReport(totalSensors: Int, avgMoisture: Double, lowCount: Int, criticalCount: Int) {
+        let statusLine: String
+        if criticalCount > 0 {
+            statusLine = "\(criticalCount) sensor\(criticalCount == 1 ? "" : "s") at critical level"
+        } else if lowCount > 0 {
+            statusLine = "\(lowCount) sensor\(lowCount == 1 ? "" : "s") running low"
+        } else {
+            statusLine = "All \(totalSensors) sensors healthy"
+        }
+
+        let content = UNMutableNotificationContent()
+        content.title = "RachioSense Weekly Report"
+        content.body  = "\(statusLine). Average moisture: \(Int(avgMoisture.rounded()))%."
+        content.sound = .default
+
+        send(identifier: "weekly-report", content: content) {
+            UserDefaults.standard.set(Date(), forKey: "notif_weekly_report_last_sent")
+        }
+    }
+
     // MARK: - Clear Badge
 
     func clearBadge() {
