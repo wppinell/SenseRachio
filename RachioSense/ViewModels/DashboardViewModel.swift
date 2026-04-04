@@ -14,11 +14,8 @@ final class DashboardViewModel {
 
     // MARK: - Computed
 
-    var driestSensor: (config: SensorConfig?, reading: SensorReading?)? {
-        guard let driest = sensorReadings.min(by: { $0.moisture < $1.moisture }) else {
-            return nil
-        }
-        return (config: nil, reading: driest)
+    var driestSensor: SensorReading? {
+        sensorReadings.min(by: { $0.moisture < $1.moisture })
     }
 
     var totalSensors: Int {
@@ -99,15 +96,15 @@ final class DashboardViewModel {
             self.zones = try await RachioAPI.shared.getDevices()
             self.rachioConnected = true
             self.rachioRateLimitMinutes = nil
-            self.rachioApiRemaining = RachioAPI.shared.rateLimitRemaining
-            self.rachioApiTotal = RachioAPI.shared.rateLimitTotal
+            self.rachioApiRemaining = await RachioAPI.shared.rateLimitRemaining
+            self.rachioApiTotal = await RachioAPI.shared.rateLimitTotal
         } catch {
             Self.logger.error("Rachio fetch failed: \(error.localizedDescription)")
             self.zones = []
             self.rachioConnected = false
-            self.rachioRateLimitMinutes = RachioAPI.shared.rateLimitResetsInMinutes
-            self.rachioApiRemaining = RachioAPI.shared.rateLimitRemaining
-            self.rachioApiTotal = RachioAPI.shared.rateLimitTotal
+            self.rachioRateLimitMinutes = await RachioAPI.shared.rateLimitResetsInMinutes
+            self.rachioApiRemaining = await RachioAPI.shared.rateLimitRemaining
+            self.rachioApiTotal = await RachioAPI.shared.rateLimitTotal
         }
     }
 

@@ -3,6 +3,7 @@ import Combine
 
 // MARK: - AppState
 
+@MainActor
 final class AppState: ObservableObject {
     @Published private(set) var hasSenseCraftCredentials: Bool = false
     @Published private(set) var hasRachioCredentials: Bool = false
@@ -37,12 +38,12 @@ final class AppState: ObservableObject {
     }
 
     // MARK: - Error Banner
+    // @MainActor isolation on this class guarantees all @Published mutations happen on the
+    // main thread — no manual DispatchQueue.main.async needed.
 
     func showError(_ message: String) {
-        DispatchQueue.main.async { [weak self] in
-            self?.errorMessage = message
-            self?.showErrorBanner = true
-        }
+        errorMessage = message
+        showErrorBanner = true
     }
 
     func dismissError() {

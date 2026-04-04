@@ -208,7 +208,7 @@ final class GraphsViewModel {
                         let reading = try await SenseCraftAPI.shared.fetchReading(eui: sensor.eui)
                         return (sensor.eui, reading)
                     } catch {
-                        print("Refresh failed for \(sensor.eui): \(error)")
+                        logger.error("Refresh failed for \(sensor.eui): \(error.localizedDescription)")
                         return (sensor.eui, nil)
                     }
                 }

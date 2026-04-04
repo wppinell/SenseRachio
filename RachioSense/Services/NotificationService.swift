@@ -1,5 +1,8 @@
 import Foundation
 import UserNotifications
+import os
+
+private let logger = Logger(subsystem: "com.rachiosense", category: "NotificationService")
 
 final class NotificationService {
     static let shared = NotificationService()
@@ -14,10 +17,10 @@ final class NotificationService {
                 options: [.alert, .badge, .sound]
             )
             if !granted {
-                print("NotificationService: Permission denied")
+                logger.info("Permission denied by user")
             }
         } catch {
-            print("NotificationService: Error requesting permission: \(error)")
+            logger.error("Error requesting permission: \(error.localizedDescription)")
         }
     }
 
@@ -47,7 +50,7 @@ final class NotificationService {
 
         UNUserNotificationCenter.current().add(request) { error in
             if let error = error {
-                print("NotificationService: Failed to schedule notification: \(error)")
+                logger.error("Failed to schedule notification: \(error.localizedDescription)")
             }
         }
     }
@@ -57,7 +60,7 @@ final class NotificationService {
     func clearBadge() {
         UNUserNotificationCenter.current().setBadgeCount(0) { error in
             if let error = error {
-                print("NotificationService: Failed to clear badge: \(error)")
+                logger.error("Failed to clear badge: \(error.localizedDescription)")
             }
         }
     }

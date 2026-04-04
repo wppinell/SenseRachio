@@ -2,6 +2,7 @@ import Foundation
 import SwiftData
 import Observation
 
+@MainActor
 @Observable
 final class ZonesViewModel {
     var devices: [RachioDevice] = []
@@ -14,11 +15,13 @@ final class ZonesViewModel {
     private var lastLoadedAt: Date? = nil
 
     func loadZones(modelContext: ModelContext, forceRefresh: Bool = false) async {
-        // Skip if recently loaded and not forced
+        // Skip if recently loaded and not forced (ViewModel-level guard prevents
+        // unnecessary SwiftData upsert work even when RachioAPI cache is warm)
         if !forceRefresh, let last = lastLoadedAt, Date().timeIntervalSince(last) < 300, !devices.isEmpty {
             return
         }
-        await MainActor.run { isLoading = true; errorMessage = nil }
+        isLoading = true
+        errorMessage = nil
 
         do {
             let fetchedDevices = try await RachioAPI.shared.getDevices(forceRefresh: forceRefresh)
@@ -41,23 +44,20 @@ final class ZonesViewModel {
             }
             try? modelContext.save()
 
-            await MainActor.run {
-                self.devices = fetchedDevices
-                self.lastLoadedAt = Date()
-                self.isLoading = false
-            }
+            self.devices = fetchedDevices
+            self.lastLoadedAt = Date()
+            self.isLoading = false
         } catch {
-            await MainActor.run {
-                self.errorMessage = error.localizedDescription
-                self.isLoading = false
-            }
+            self.errorMessage = error.localizedDescription
+            self.isLoading = false
         }
     }
 
     // MARK: - Start Zone
 
     func startZone(id: String, duration: Int, modelContext: ModelContext) async {
-        await MainActor.run { isLoading = true; errorMessage = nil }
+        isLoading = true
+        errorMessage = nil
 
         do {
             try await RachioAPI.shared.startZone(id: id, duration: duration)
@@ -69,53 +69,58 @@ final class ZonesViewModel {
                 try? modelContext.save()
             }
 
-            await MainActor.run {
-                self.activeZoneId = id
-                self.isLoading = false
-            }
+            self.activeZoneId = id
+            self.isLoading = false
         } catch {
-            await MainActor.run {
-                self.errorMessage = error.localizedDescription
-                self.isLoading = false
-            }
+            self.errorMessage = error.localizedDescription
+            self.isLoading = false
         }
     }
 
     // MARK: - Stop Zone
 
     func stopZone(id: String) async {
-        await MainActor.run { isLoading = true; errorMessage = nil }
+        isLoading = true
+        errorMessage = nil
 
         do {
             try await RachioAPI.shared.stopZone(id: id)
 
-            await MainActor.run {
-                if self.activeZoneId == id {
-                    self.activeZoneId = nil
-                }
-                self.isLoading = false
+            if self.activeZoneId == id {
+                self.activeZoneId = nil
             }
+            self.isLoading = false
         } catch {
-            await MainActor.run {
-                self.errorMessage = error.localizedDescription
-                self.isLoading = false
-            }
+            self.errorMessage = error.localizedDescription
+            self.isLoading = false
         }
     }
 
     // MARK: - Stop All Zones
 
     func stopAllZones() async {
-        await MainActor.run { isLoading = true; errorMessage = nil }
+        isLoading = true
+        errorMessage = nil
 
         let allZones = devices.flatMap(\.zones).filter(\.enabled)
+        var errors: [Error] = []
+
         for zone in allZones {
-            try? await RachioAPI.shared.stopZone(id: zone.id)
+            do {
+                try await RachioAPI.shared.stopZone(id: zone.id)
+            } catch {
+                errors.append(error)
+            }
         }
 
-        await MainActor.run {
-            self.activeZoneId = nil
-            self.isLoading = false
+        self.activeZoneId = nil
+        self.isLoading = false
+
+        // Report first error if any zones failed to stop
+        if let first = errors.first {
+            self.errorMessage = errors.count == 1
+                ? first.localizedDescription
+                : "\(errors.count) zones failed to stop. First error: \(first.localizedDescription)"
         }
     }
 }

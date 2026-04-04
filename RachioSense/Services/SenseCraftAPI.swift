@@ -47,9 +47,11 @@ final class SenseCraftAPI {
     private let baseURL = "https://sensecap.seeed.cc/openapi"
     private let session: URLSession
 
-    // Measurement IDs
-    private let moistureMeasurementID = "4103"
-    private let tempMeasurementID = "4102"
+    // Measurement IDs (SenseCAP channel identifiers)
+    private enum MeasurementID {
+        static let moisture    = "4103"
+        static let temperature = "4102"
+    }
 
     private init() {
         let config = URLSessionConfiguration.default
@@ -165,9 +167,9 @@ final class SenseCraftAPI {
             var tempC: Double? = nil
 
             for point in allPoints {
-                if point.measurementId == moistureMeasurementID {
+                if point.measurementId == MeasurementID.moisture {
                     moisture = point.measurementValue
-                } else if point.measurementId == tempMeasurementID {
+                } else if point.measurementId == MeasurementID.temperature {
                     tempC = point.measurementValue
                 }
             }
@@ -225,7 +227,7 @@ final class SenseCraftAPI {
             let nowMs = Int(Date().timeIntervalSince1970 * 1000)
 
             for i in 0..<chunks {
-                if i > 0 { try? await Task.sleep(nanoseconds: 200_000_000) } // 0.2s between chunks
+                if i > 0 { try await Task.sleep(nanoseconds: 200_000_000) } // 0.2s between chunks
                 let chunkEndMs   = nowMs - (i * chunkHours * 3600 * 1000)
                 let chunkStartMs = chunkEndMs - (chunkHours * 3600 * 1000)
                 var chunk: [HistoricalReading] = []
@@ -235,7 +237,7 @@ final class SenseCraftAPI {
                         break
                     } catch SenseCraftAPIError.httpError(429) {
                         let wait: UInt64 = UInt64(attempt) * 3_000_000_000 // 3s, 6s, 9s
-                        try? await Task.sleep(nanoseconds: wait)
+                        try await Task.sleep(nanoseconds: wait)
                     } catch {
                         break
                     }
@@ -311,8 +313,8 @@ final class SenseCraftAPI {
             return s
         }
         
-        let moistureSeries = series(at: measurementIdToIndex[moistureMeasurementID])
-        let tempSeries     = series(at: measurementIdToIndex[tempMeasurementID])
+        let moistureSeries = series(at: measurementIdToIndex[MeasurementID.moisture])
+        let tempSeries     = series(at: measurementIdToIndex[MeasurementID.temperature])
         
 
         

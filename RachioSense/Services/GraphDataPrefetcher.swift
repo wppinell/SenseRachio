@@ -248,10 +248,12 @@ final class GraphDataPrefetcher {
             logger.debug(" Save FAILED: \(error)")
         }
 
-        // Prune > 7 days
+        // Prune readings older than 7 days using a predicate fetch (avoids loading all rows into memory)
         let cutoff = now.addingTimeInterval(-7 * 24 * 3600)
-        let freshReadings = (try? modelContext.fetch(FetchDescriptor<SensorReading>())) ?? []
-        let old = freshReadings.filter { $0.recordedAt < cutoff }
+        let pruneDescriptor = FetchDescriptor<SensorReading>(
+            predicate: #Predicate { $0.recordedAt < cutoff }
+        )
+        let old = (try? modelContext.fetch(pruneDescriptor)) ?? []
         if !old.isEmpty {
             old.forEach { modelContext.delete($0) }
             _ = try? modelContext.save()

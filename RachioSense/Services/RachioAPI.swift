@@ -40,7 +40,7 @@ struct RachioScheduleRule: Codable, Identifiable {
     let daysOfWeek: [String]?       // Fixed schedules: ["MONDAY", "WEDNESDAY", ...]
     let scheduleJobTypes: [String]? // e.g. ["DAY_INTERVAL", "FIXED_DAYS", "FLEX"]
     let cycleAndSoakStatus: String?
-    
+
     var startTimeFormatted: String {
         let h = startHour ?? 0
         let m = startMinute ?? 0
@@ -48,15 +48,15 @@ struct RachioScheduleRule: Codable, Identifiable {
         let h12 = h == 0 ? 12 : h > 12 ? h - 12 : h
         return String(format: "%d:%02d %@", h12, m, ampm)
     }
-    
+
     /// Number of times this schedule runs per week (as a Double for fractional intervals)
     var runsPerWeekDouble: Double {
         guard let types = scheduleJobTypes, !types.isEmpty else { return 1 }
-        
+
         // Count DAY_OF_WEEK_N entries (specific days: 0=Sun, 1=Mon, ... 6=Sat)
         let dayOfWeekCount = types.filter { $0.hasPrefix("DAY_OF_WEEK_") }.count
         if dayOfWeekCount > 0 { return Double(dayOfWeekCount) }
-        
+
         // INTERVAL_N = runs every N days → 7/N runs per week
         for type_ in types {
             if type_.hasPrefix("INTERVAL_"),
@@ -64,7 +64,7 @@ struct RachioScheduleRule: Codable, Identifiable {
                 return 7.0 / Double(n)
             }
         }
-        
+
         return 1
     }
 }
@@ -90,7 +90,7 @@ struct RachioWateringEvent: Identifiable {
 struct RachioScheduleZone: Codable {
     let id: String
     let duration: Int
-    
+
     enum CodingKeys: String, CodingKey {
         case id = "zoneId"
         case duration
@@ -194,25 +194,26 @@ enum RachioAPIError: Error, LocalizedError {
 }
 
 // MARK: - RachioAPI
+// Implemented as an actor to guarantee thread-safe access to all mutable state
+// without manual locking. All stored properties are actor-isolated by default.
 
-final class RachioAPI {
+actor RachioAPI {
     static let shared = RachioAPI()
 
     private let baseURL = "https://api.rach.io/1/public"
     private let session: URLSession
-    
-    // Cache to avoid hammering Rachio API
+
+    // Device cache — actor isolation ensures safe concurrent access
     private var cachedDevices: [RachioDevice]? = nil
     private var cacheTimestamp: Date? = nil
     private let cacheTTL: TimeInterval = 300 // 5 minutes
     private var activeFetchTask: Task<[RachioDevice], Error>? = nil
-    private let fetchLock = OSAllocatedUnfairLock()
-    
-    // Cache personId and deviceIds to avoid repeated calls
+
+    // Persisted IDs to reduce API calls across sessions
     private var cachedPersonId: String? = nil
     private var cachedDeviceIds: [String]? = nil
-    
-    // Rate limit state (public for UI)
+
+    // Rate limit state (readable from outside via actor hop)
     private(set) var rateLimitedUntil: Date? = nil
     private(set) var rateLimitRemaining: Int? = nil
     private(set) var rateLimitTotal: Int? = nil
@@ -252,29 +253,29 @@ final class RachioAPI {
     }
 
     // MARK: - Rate Limit Logging
-    
+
     private func logRateLimitHeaders(_ response: HTTPURLResponse, endpoint: String) {
         let headers = response.allHeaderFields
         var info: [String] = []
-        
+
         // Common rate limit header names
-        for key in ["X-RateLimit-Limit", "X-RateLimit-Remaining", "X-RateLimit-Reset", 
+        for key in ["X-RateLimit-Limit", "X-RateLimit-Remaining", "X-RateLimit-Reset",
                     "RateLimit-Limit", "RateLimit-Remaining", "RateLimit-Reset",
                     "Retry-After", "X-Retry-After"] {
             if let value = headers[key] ?? headers[key.lowercased()] {
                 info.append("\(key): \(value)")
             }
         }
-        
+
         if !info.isEmpty {
             logger.debug(" \(endpoint) rate headers: \(info.joined(separator: ", "))")
         } else if response.statusCode == 429 {
             logger.debug(" \(endpoint) 429 - all headers: \(headers)")
         }
-        
+
         // Parse rate limit values (headers might have different casing)
         let headerDict = Dictionary(uniqueKeysWithValues: headers.map { (String(describing: $0.key).lowercased(), $0.value) })
-        
+
         if let limitStr = headerDict["x-ratelimit-limit"] as? String, let limit = Int(limitStr) {
             rateLimitTotal = limit
         }
@@ -292,13 +293,13 @@ final class RachioAPI {
             }
         }
     }
-    
+
     /// Check if currently rate limited
     var isRateLimited: Bool {
         guard let until = rateLimitedUntil else { return false }
         return Date() < until
     }
-    
+
     /// Minutes until rate limit resets (nil if not limited)
     var rateLimitResetsInMinutes: Int? {
         guard let until = rateLimitedUntil, Date() < until else { return nil }
@@ -308,21 +309,19 @@ final class RachioAPI {
     // MARK: - Get Person Info
 
     private func getPersonId() async throws -> String {
-        // Return cached personId if available
         if let cached = cachedPersonId {
             return cached
         }
-        
+
         let request = try makeRequest(path: "/person/info")
         let (data, response) = try await session.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw RachioAPIError.invalidResponse
         }
-        
-        // Log rate limit headers
+
         logRateLimitHeaders(httpResponse, endpoint: "/person/info")
-        
+
         guard httpResponse.statusCode == 200 else {
             throw RachioAPIError.httpError(httpResponse.statusCode)
         }
@@ -371,32 +370,26 @@ final class RachioAPI {
         }
 
         do {
-            let device = try JSONDecoder().decode(RachioDevice.self, from: data)
-
-            return device
+            return try JSONDecoder().decode(RachioDevice.self, from: data)
         } catch {
             throw RachioAPIError.decodingError(error)
         }
     }
-    
-    // MARK: - Get Schedule Rules for Device
-
-
 
     // MARK: - Get Devices
 
     func getDevices(forceRefresh: Bool = false) async throws -> [RachioDevice] {
-        // If we're rate-limited, fail fast or return stale cache
+        // If we're rate-limited, return stale cache or throw
         if let until = rateLimitedUntil, Date() < until {
             let waitSecs = Int(until.timeIntervalSince(Date()))
             logger.debug(" rate-limited, \(waitSecs)s remaining")
             if let cached = cachedDevices {
-                return cached // return stale cache rather than error
+                return cached
             }
             throw RachioAPIError.httpError(429)
         }
-        
-        // Return cached if fresh enough (no lock needed for read)
+
+        // Return cached if fresh enough
         if !forceRefresh,
            let cached = cachedDevices,
            let ts = cacheTimestamp,
@@ -404,46 +397,37 @@ final class RachioAPI {
             logger.debug(" returning cached devices (\(Int(Date().timeIntervalSince(ts)))s old)")
             return cached
         }
-        
-        // Thread-safe check for existing fetch task
-        let existingTask: Task<[RachioDevice], Error>? = fetchLock.withLock { activeFetchTask }
-        if let existing = existingTask {
+
+        // Coalesce concurrent callers onto the same in-flight Task
+        if let existing = activeFetchTask {
             logger.debug(" getDevices: fetch in progress, waiting for existing task...")
             return try await existing.value
         }
-        
+
         logger.debug(" getDevices: starting new fetch task")
-        // Start new fetch task
-        let task = Task<[RachioDevice], Error> { [weak self] in
-            guard let self else { throw RachioAPIError.invalidResponse }
-            defer { 
-                self.fetchLock.withLock { self.activeFetchTask = nil }
-                logger.debug(" getDevices: fetch task completed, cleared activeFetchTask")
-            }
+        let task = Task<[RachioDevice], Error> {
+            defer { self.activeFetchTask = nil }
             do {
-                let result = try await fetchDevicesFromAPI()
-                rateLimitedUntil = nil // clear any backoff on success
+                let result = try await self.fetchDevicesFromAPI()
+                self.rateLimitedUntil = nil // clear any backoff on success
                 return result
             } catch RachioAPIError.httpError(429) {
-                // Only use fallback if header didn't set a reset time
-                logger.debug(" got 429, rateLimitedUntil=\(String(describing: rateLimitedUntil))")
-                if rateLimitedUntil == nil || rateLimitedUntil! < Date() {
+                logger.debug(" got 429, rateLimitedUntil=\(String(describing: self.rateLimitedUntil))")
+                if self.rateLimitedUntil == nil || self.rateLimitedUntil! < Date() {
                     logger.debug(" no valid reset time from header, backing off for 5 min")
-                    rateLimitedUntil = Date().addingTimeInterval(rateLimitBackoff)
+                    self.rateLimitedUntil = Date().addingTimeInterval(self.rateLimitBackoff)
                 }
                 throw RachioAPIError.httpError(429)
             }
         }
-        fetchLock.withLock { activeFetchTask = task }
-        
+        activeFetchTask = task
         return try await task.value
     }
-    
+
     private func fetchDevicesFromAPI() async throws -> [RachioDevice] {
         let personId = try await getPersonId()
         logger.debug(" personId: \(personId)")
 
-        // Use in-memory cache, then try API, then Keychain fallback
         let deviceIds: [String]
         if let cached = cachedDeviceIds, !cached.isEmpty {
             deviceIds = cached
@@ -467,8 +451,7 @@ final class RachioAPI {
             logger.debug(" fetched device: \(device.name), \(device.scheduleRules?.count ?? 0) schedules")
             devices.append(device)
         }
-        
-        // Cache result
+
         cachedDevices = devices
         cacheTimestamp = Date()
         return devices
@@ -530,12 +513,10 @@ final class RachioAPI {
         }
 
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
-            // Log raw response to diagnose field names
             logger.warning("Watering events: unexpected response format: \(String(data: data, encoding: .utf8)?.prefix(500) ?? "nil")")
             return []
         }
 
-        // Separate started vs completed events
         struct RawEvent {
             let id: String; let zoneName: String; let date: Date; let subType: String
         }
@@ -546,7 +527,6 @@ final class RachioAPI {
                   let eventDateMs = dict["eventDate"] as? Int,
                   let id = dict["id"] as? String else { return nil }
             let summary = dict["summary"] as? String ?? ""
-            // Summary format: "Zone Name began/started/completed watering at..."
             let separators = [" began ", " started ", " completed ", " finished "]
             let zoneName = separators
                 .compactMap { sep -> String? in
@@ -560,12 +540,10 @@ final class RachioAPI {
                             subType: subType)
         }
 
-        // ZONE_STARTED = "began watering", ZONE_COMPLETED = "completed watering"
         let started   = rawEvents.filter { $0.subType == "ZONE_STARTED" }
         let completed = rawEvents.filter { $0.subType == "ZONE_COMPLETED" }
         logger.info("Parsed \(started.count) ZONE_STARTED, \(completed.count) ZONE_COMPLETED events")
 
-        // Build events from STARTED, match with nearest COMPLETED for the same zone
         var events: [RachioWateringEvent] = started.map { s in
             let match = completed.filter { $0.zoneName == s.zoneName && $0.date > s.date }
                                  .min(by: { $0.date < $1.date })
@@ -574,7 +552,6 @@ final class RachioAPI {
                                       startDate: s.date, endDate: match?.date, duration: duration)
         }
 
-        // If no STARTED events, fall back to COMPLETED only
         if events.isEmpty {
             events = completed.map { c in
                 RachioWateringEvent(id: c.id, zoneId: "", zoneName: c.zoneName,
@@ -591,7 +568,6 @@ final class RachioAPI {
             result.append(event)
         }
 
-        // Debug: log parsed events
         for e in deduped.prefix(3) {
             logger.info("Event: \(e.zoneName) start=\(e.startDate) end=\(e.endDate.map { "\($0)" } ?? "nil") duration=\(e.duration)s")
         }
@@ -599,15 +575,14 @@ final class RachioAPI {
         cachedEvents = deduped
         eventCacheTimestamp = Date()
         logger.info("Fetched \(events.count) watering events for device \(deviceId)")
-        return events
+        return deduped
     }
 
     /// Fetch weather intelligence skips (rain delay, freeze skip, etc.) — past and future
     func getRainSkips(deviceId: String, days: Int = 7) async throws -> [RachioRainSkip] {
-        // Events API can return both past and already-decided future skips
         return try await getPastRainSkips(deviceId: deviceId, days: days)
     }
-    
+
     /// Fetch rain skips from event history (past and near-future that are already decided)
     private func getPastRainSkips(deviceId: String, days: Int) async throws -> [RachioRainSkip] {
         let now = Date().timeIntervalSince1970 * 1000
@@ -625,24 +600,17 @@ final class RachioAPI {
             return []
         }
 
-
-        
-        // Look for WEATHER_INTELLIGENCE or SCHEDULE_STATUS with skip indicators
         let skips: [RachioRainSkip] = json.compactMap { dict in
             guard let type = dict["type"] as? String,
                   let subType = dict["subType"] as? String,
                   let eventDateMs = dict["eventDate"] as? Int,
                   let id = dict["id"] as? String else { return nil }
-            
-            // Match weather intelligence skips only (not seasonal adjustments)
+
             let isWeatherSkip = type == "WEATHER_INTELLIGENCE" && (subType.contains("SKIP") || subType.contains("DELAY"))
             guard isWeatherSkip else { return nil }
 
             let summary = dict["summary"] as? String ?? "Schedule skipped"
 
-            // Extract schedule name from formats like:
-            // "Rose Bush was scheduled for 3/31..." → "Rose Bush"
-            // "Garden Night schedule was skipped..." → "Garden Night"
             let scheduleName: String
             if let range = summary.range(of: " was scheduled") {
                 scheduleName = String(summary[..<range.lowerBound])
@@ -655,20 +623,18 @@ final class RachioAPI {
                          subType.contains("FREEZE") ? "Freeze detected" :
                          subType.contains("WIND") ? "High wind" : "Weather skip"
 
-            // Try to extract the scheduled time from summary: "for 3/31 at 06:47 PM (MST)"
             var skipDate = Date(timeIntervalSince1970: Double(eventDateMs) / 1000)
             if let forRange = summary.range(of: "for "),
                let atRange = summary.range(of: " at ", range: forRange.upperBound..<summary.endIndex) {
-                let dateStr = String(summary[forRange.upperBound..<atRange.lowerBound]) // "3/31"
+                let dateStr = String(summary[forRange.upperBound..<atRange.lowerBound])
                 let timeStart = atRange.upperBound
                 if let parenRange = summary.range(of: " (", range: timeStart..<summary.endIndex) {
-                    let timeStr = String(summary[timeStart..<parenRange.lowerBound]) // "06:47 PM"
+                    let timeStr = String(summary[timeStart..<parenRange.lowerBound])
                     let fullStr = "\(dateStr) \(timeStr)"
                     let fmt = DateFormatter()
                     fmt.dateFormat = "M/d h:mm a"
-                    fmt.defaultDate = Date() // Use current year
+                    fmt.defaultDate = Date()
                     if let parsed = fmt.date(from: fullStr) {
-                        // Ensure it's in the current year context
                         let cal = Calendar.current
                         var comps = cal.dateComponents([.month, .day, .hour, .minute], from: parsed)
                         comps.year = cal.component(.year, from: Date())
@@ -678,7 +644,7 @@ final class RachioAPI {
                     }
                 }
             }
-            
+
             return RachioRainSkip(
                 id: id,
                 scheduleName: scheduleName.trimmingCharacters(in: .whitespaces),
@@ -690,5 +656,4 @@ final class RachioAPI {
         logger.info("Found \(skips.count) past weather intelligence skips")
         return skips
     }
-    
 }

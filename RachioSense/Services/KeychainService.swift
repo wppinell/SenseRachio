@@ -113,5 +113,6 @@ final class KeychainService {
         _ = try? delete(forKey: KeychainKey.senseCraftAPIKey)
         _ = try? delete(forKey: KeychainKey.senseCraftAPISecret)
         _ = try? delete(forKey: KeychainKey.rachioAPIKey)
+        _ = try? delete(forKey: KeychainKey.rachioDeviceIds)
     }
 }

@@ -4,9 +4,15 @@ import CoreLocation
 /// Weather service using Open-Meteo API (free, no API key required)
 final class WeatherAPI {
     static let shared = WeatherAPI()
-    private init() {}
-    
+
+    private let session: URLSession
     private let baseURL = "https://api.open-meteo.com/v1/forecast"
+
+    private init() {
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = 30
+        session = URLSession(configuration: config)
+    }
     
     struct Forecast: Sendable {
         let current: CurrentWeather
@@ -33,8 +39,8 @@ final class WeatherAPI {
     
     /// Fetch 7-day forecast for a location
     func fetchForecast(latitude: Double, longitude: Double) async throws -> Forecast {
-        var components = URLComponents(string: baseURL)!
-        components.queryItems = [
+        var components = URLComponents(string: baseURL)
+        components?.queryItems = [
             URLQueryItem(name: "latitude", value: String(latitude)),
             URLQueryItem(name: "longitude", value: String(longitude)),
             URLQueryItem(name: "current", value: "temperature_2m,relative_humidity_2m,weather_code"),
@@ -44,21 +50,28 @@ final class WeatherAPI {
             URLQueryItem(name: "timezone", value: "auto"),
             URLQueryItem(name: "forecast_days", value: "7")
         ]
-        
-        let (data, response) = try await URLSession.shared.data(from: components.url!)
-        
-        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-            throw WeatherError.apiError
+
+        guard let url = components?.url else {
+            throw WeatherError.invalidURL
+        }
+
+        let (data, response) = try await session.data(from: url)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw WeatherError.apiError(statusCode: nil)
+        }
+        guard httpResponse.statusCode == 200 else {
+            throw WeatherError.apiError(statusCode: httpResponse.statusCode)
         }
         
         let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
-        
+
         // Parse current weather
         guard let currentData = json?["current"] as? [String: Any],
               let currentTemp = currentData["temperature_2m"] as? Double,
               let humidity = currentData["relative_humidity_2m"] as? Int,
               let weatherCode = currentData["weather_code"] as? Int else {
-            throw WeatherError.parseError
+            throw WeatherError.parseError(field: "current")
         }
         
         let current = CurrentWeather(
@@ -76,7 +89,7 @@ final class WeatherAPI {
               let lows = dailyData["temperature_2m_min"] as? [Double],
               let codes = dailyData["weather_code"] as? [Int],
               let precip = dailyData["precipitation_sum"] as? [Double] else {
-            throw WeatherError.parseError
+            throw WeatherError.parseError(field: "daily")
         }
         
         let dateFormatter = DateFormatter()
@@ -141,8 +154,21 @@ final class WeatherAPI {
         }
     }
     
-    enum WeatherError: Error {
-        case apiError
-        case parseError
+    enum WeatherError: Error, LocalizedError {
+        case invalidURL
+        case apiError(statusCode: Int?)
+        case parseError(field: String)
+
+        var errorDescription: String? {
+            switch self {
+            case .invalidURL:
+                return "Could not construct a valid URL for the weather API."
+            case .apiError(let code):
+                if let code { return "Weather API returned HTTP \(code)." }
+                return "Invalid response from weather API."
+            case .parseError(let field):
+                return "Failed to parse '\(field)' from weather API response."
+            }
+        }
     }
 }
