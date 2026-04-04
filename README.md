@@ -393,13 +393,44 @@ Per-sensor settings:
 
 #### Notifications
 
-| Setting | Description |
-|---------|-------------|
-| **Dry Alerts** | Push when sensor drops below dry threshold |
-| **Critical Alerts** | Push when sensor drops below auto-water threshold |
-| **Sensor Offline** | Push when sensor stops reporting |
-| **Zone Started/Stopped** | Push for manual zone runs |
-| **Daily Summary** | Configurable hour for daily digest |
+**Sensor Alerts**
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| **Critical Alerts** | On | Fires when moisture drops below the auto-water threshold (default 20%) |
+| **Low Alerts** | On | Fires when moisture is between the auto-water and dry thresholds |
+| **Sensor Offline** | On | Fires when a sensor hasn't reported in 3+ hours |
+| **Predictive Alerts** | On | Fires when the decay model predicts critical/dry within the alert window |
+| **Alert window** | 6h | How far ahead predictive alerts fire (2 / 4 / 6 / 12h) |
+
+**Cooldown**
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| **Alert cooldown** | 4h | Minimum time between repeated alerts for the same sensor (2 / 4 / 6 / 12 / 24h) |
+
+**Zone Activity**
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| **Zone Finished** | Off | Fires when a zone's last-watered timestamp changes (polling-based) |
+| **Scheduled Run Soon** | Off | Fires when a zone's next run is within 2 hours |
+
+**Summaries**
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| **Daily Summary** | Off | "N healthy · N low · driest: X at Y%" at a configured time each day |
+| **Weekly Report** | Off | Aggregate health summary on a configured day of the week |
+
+**Quiet Hours**
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| **Quiet Hours** | Off | Suppresses all alerts between configured hours (default 10 PM – 7 AM) |
+
+**How notifications fire:**
+Background refresh runs every ~15–60 min (iOS controls actual cadence). Each cycle: saves new sensor readings → evaluates predictive alerts → evaluates threshold alerts → checks sensor offline → checks zone changes → checks daily/weekly summaries. Cooldown is tracked per sensor per alert type in UserDefaults so a dry sensor never spams across multiple refresh cycles.
 
 #### Weather Integration
 
@@ -532,8 +563,8 @@ Per-sensor settings:
                     ┌────────────────────────┐
                     │      RachioAPI         │
                     │  • getDevices()        │◄── 5-min cache
-                    │  • startZone()         │    + NSLock for
-                    │  • stopZone()          │    concurrent calls
+                    │  • startZone()         │    actor-isolated
+                    │  • stopZone()          │    (Swift actor)
                     │  • Rate limit tracking │
                     └────────────────────────┘
                                  │
@@ -715,10 +746,10 @@ X-RateLimit-Reset: 2026-03-27T00:00:00Z
 ## 🔮 Planned Features
 
 ### High Priority
-- [ ] **Location-based weather** — Use device GPS or user-set location instead of hardcoded Phoenix
-- [ ] **Rachio next scheduled run** — Show "Next run: Tomorrow 6:00 AM" on dashboard and zone rows
-- [ ] **Auto-water execution** — Actually trigger Rachio zone when sensor goes critical
-- [ ] **Push notifications** — Local alerts for critical sensors and auto-water events
+- [x] **Location-based weather** — CoreLocation with fallback chain to hardcoded coordinates
+- [x] **Rachio next scheduled run** — Shown on dashboard and zone rows
+- [x] **Push notifications** — Full local notification system: critical/low/predictive/offline/zone/summary
+- [ ] **Auto-water execution** — Toggle exists but doesn't yet trigger Rachio
 
 ### Medium Priority
 - [ ] **iOS Widget** — Home screen widget showing moisture summary
@@ -817,19 +848,17 @@ X-RateLimit-Reset: 2026-03-27T00:00:00Z
 
 | Issue | Severity | Description |
 |-------|----------|-------------|
-| **SwiftData threading** | Medium | `ModelContext` used off main queue in BackgroundRefreshManager — should use `ModelActor` |
-| **Weather location hardcoded** | Medium | Open-Meteo coordinates fixed at Phoenix, AZ |
 | **Flex schedule runtime** | Low | Rachio flex schedules show estimated 1×/week (inaccurate) |
-| **Background refresh untested** | Low | `BGAppRefreshTask` registered but iOS delivery is unpredictable |
+| **Zone started/stopped** | Low | Detected by polling `lastWateredDate` — not real-time; requires webhook pipeline for accuracy |
+| **Background refresh cadence** | Low | iOS throttles BGAppRefresh based on battery and usage — actual intervals vary widely |
 
 ### Technical Debt
 
 | Item | Notes |
 |------|-------|
 | `moistureThreshold` in SwiftData | Field kept for DB compatibility but unused — global thresholds only |
-| Duplicate API calls | SensorsViewModel and DashboardViewModel both fetch live readings on load |
 | No retry UI | API errors shown as banner but no retry button |
-| Debug print statements | `[RachioAPI]`, `[Prefetch]`, etc. should be removed or made conditional |
+| Auto-water execution | Toggle and threshold exist but don't yet call Rachio |
 
 ### API Limitations
 
@@ -909,6 +938,33 @@ MIT License — see LICENSE file
 ---
 
 ## Changelog
+
+### 2026-04 (Claude Refactor)
+
+**Notification System (fully implemented):**
+- Notification permission requested on first foreground launch
+- Background refresh properly submitted to iOS scheduler at launch and on each background transition
+- Per-sensor cooldown (default 4h) tracked in UserDefaults — no more repeated alerts while moisture stays low
+- Quiet hours respected across all alert types
+- Critical vs. low severity distinction ("⚠️ Critical Soil Moisture" vs. "Soil Moisture Low")
+- Predictive alerts: exponential decay model predicts hours until critical/dry threshold; fires "⚠️ Going Critical Soon — ~3h" when within configurable window (default 6h)
+- Sensor offline detection: fires after 3+ hours without a reading (12h cooldown)
+- Zone ran detection: polling-based via Rachio `lastWateredDate` comparison
+- Upcoming run alert: fires when next scheduled run is within 2 hours
+- Daily summary: fires once per day after configured time
+- Weekly report: fires once per week on configured day
+- All toggles in Settings → Notifications now wired to actual code
+- New settings: Alert window picker, Cooldown picker
+
+**Code Quality (Claude Refactor):**
+- `RachioAPI` converted from `final class` + manual locking to Swift `actor`
+- `KeychainService.deleteAll()` fixed to also clear `rachioDeviceIds`
+- `ZonesViewModel.stopAllZones()` now collects and reports per-zone errors
+- `@MainActor` added to `AppState` and `ZonesViewModel`
+- `SenseCraftAPI` measurement IDs replaced with named `MeasurementID` enum
+- `GraphDataPrefetcher` pruning uses predicate-based `FetchDescriptor` instead of full table scan
+- `WeatherAPI` force unwrap fixed; `URLSession` configured with 30s timeout; `WeatherError` enriched
+- All `print()` calls replaced with `os.Logger`
 
 ### 2026-03-26
 
