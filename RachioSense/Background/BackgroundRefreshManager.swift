@@ -61,8 +61,9 @@ actor BackgroundModelActor {
         var driest: (name: String, eui: String, moisture: Double)? = nil
 
         for config in configs where !config.isHiddenFromGraphs {
+            let eui = config.eui   // capture as plain String — #Predicate can't use @Model properties directly
             var desc = FetchDescriptor<SensorReading>(
-                predicate: #Predicate { $0.eui == config.eui },
+                predicate: #Predicate { $0.eui == eui },
                 sortBy: [SortDescriptor(\SensorReading.recordedAt, order: .reverse)]
             )
             desc.fetchLimit = 1
