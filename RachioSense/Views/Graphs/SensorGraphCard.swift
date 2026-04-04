@@ -293,7 +293,7 @@ struct SensorGraphCard: View {
                         xStart: .value("Start", range.start),
                         xEnd: .value("End", range.end)
                     )
-                    .foregroundStyle(DS.Color.textTertiary.opacity(0.08))
+                    .foregroundStyle(DS.Color.textTertiary.opacity(0.18))
                 }
             }
 
