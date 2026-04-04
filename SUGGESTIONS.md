@@ -215,3 +215,95 @@ Before submission:
 - [x] Test on physical device (SenseCAP WebSocket + background refresh)
 - [ ] Add onboarding flow for first launch (no credentials state)
 - [ ] Verify Keychain entries are properly scoped with `kSecAttrAccessibleWhenUnlockedThisDeviceOnly`
+
+---
+
+## 🔧 Refactoring Opportunities
+
+### Introduce `CachedValue<T>` Generic
+TTL-based caching logic is duplicated across `RachioAPI`, `SenseCraftAPI`, `ZonesViewModel`, and `WeatherAPI`. A small generic would eliminate it:
+```swift
+struct CachedValue<T> {
+    private var value: T?
+    private var cachedAt: Date?
+    let ttl: TimeInterval
+
+    var isFresh: Bool {
+        guard let cachedAt else { return false }
+        return Date().timeIntervalSince(cachedAt) < ttl
+    }
+    mutating func set(_ newValue: T) { value = newValue; cachedAt = Date() }
+    func get() -> T? { isFresh ? value : nil }
+    mutating func invalidate() { cachedAt = nil }
+}
+```
+
+### Extract `SensorStatus` Enum
+Moisture threshold comparisons appear in ViewModels, Views, and cache logic. A centralized enum ensures consistent behavior:
+```swift
+enum SensorStatus {
+    case critical, dry, ok, high
+    init(moisture: Double, autoWater: Double, dry: Double, high: Double) {
+        if moisture < autoWater      { self = .critical }
+        else if moisture < dry       { self = .dry }
+        else if moisture > high      { self = .high }
+        else                         { self = .ok }
+    }
+}
+```
+
+### Replace Manual JSON Parsing in `WeatherAPI` with `Codable`
+`fetchForecast` uses `JSONSerialization` with manual key lookups. The Open-Meteo response shape is stable and documented — a `Codable` model would be more robust and self-documenting.
+
+### Remove Redundant ViewModel Cache in `ZonesViewModel`
+`ZonesViewModel` has its own 5-minute `lastLoadedAt` guard before calling `RachioAPI.getDevices()`, which already has a 5-minute actor-isolated cache. The ViewModel-level cache is redundant and prevents `forceRefresh: true` from reaching the API layer.
+
+### Fix `DashboardCardOrder` — No Single-Instance Enforcement
+Multiple `DashboardCardOrder` records can be inserted. Callers using `first` silently ignore duplicates. A fetch-or-create pattern or unique constraint would prevent this.
+
+---
+
+## 🧪 Unit Tests
+
+Recommended test structure:
+```
+RachioSenseTests/
+├── Models/         SensorConfigTests.swift
+├── Services/       RachioAPITests.swift, KeychainServiceTests.swift, WeatherAPITests.swift
+├── ViewModels/     ZonesViewModelTests.swift
+├── Extensions/     DateExtensionTests.swift
+└── Integration/    GraphDataPrefetcherTests.swift, LiveReadingsCacheTests.swift
+```
+
+### High-value unit tests
+
+**`RachioScheduleRule.runsPerWeekDouble`**
+- 3 specific weekdays → 3.0
+- `INTERVAL_2` → 3.5, `INTERVAL_7` → 1.0
+- Empty types → defaults to 1.0
+
+**`RachioScheduleRule.startTimeFormatted`**
+- Midnight (0:00) → "12:00 AM", Noon (12:00) → "12:00 PM", 13:30 → "1:30 PM"
+
+**`SensorConfig.displayName` and `daysUntilExpiry`**
+- No alias → returns `name`; empty alias → returns `name`; alias set → returns alias
+- No expiry date → `nil`; future date → positive days; past date → ≤ 0
+
+**`KeychainService` round-trip**
+- Save / Load / Delete cycle; overwrite replaces existing value
+
+**`RachioWateringEvent.isLongEnough`**
+- 300s → `true`; 240s → `false`
+
+**`WeatherAPI` icon and description mapping**
+- WMO code 0 → `"sun.max.fill"`; code 99 → `"cloud.bolt.rain.fill"`; unknown → `"cloud.fill"`
+- Note: `weatherIcon` and `weatherDescription` need to be `internal` to be testable
+
+**`NotificationService` cooldown**
+- First call fires; second call within cooldown window is suppressed; call after cooldown fires again
+
+### Integration tests (require mock URLSession / in-memory SwiftData)
+- **GraphDataPrefetcher deduplication** — readings within 60s of existing records are not duplicated
+- **LiveReadingsCache coalescing** — concurrent `getReadings()` calls hit the API only once per device
+- **RachioAPI 429 backoff** — mock 429 with `X-RateLimit-Reset` header; verify `rateLimitedUntil` uses header date, not fixed 5-minute fallback
+- **LocationManager fallback chain** — GPS authorized → device location; denied + UserDefaults set → configured location; denied + no UserDefaults → Phoenix default

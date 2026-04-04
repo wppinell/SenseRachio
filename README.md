@@ -20,6 +20,79 @@ An iOS app that bridges **SenseCAP soil moisture sensors** with the **Rachio irr
 
 ---
 
+## Navigation Map
+
+```
+RachioSense
+│
+├── TAB: Dashboard (house.fill)
+│   ├── WEATHER card — 7-day Open-Meteo forecast
+│   ├── ALERTS card — Critical / Dry / High / Subscription expiry / Rate limit
+│   └── SYSTEM STATUS card — SenseCraft + Rachio connectivity + API call counter
+│
+├── TAB: Graphs (chart.line.uptrend.xyaxis)
+│   └── Per-group sensor graph cards
+│       ├── Period picker (1d / 2d / 4d / 5d / 1w) — single tap = this card, double tap = all cards
+│       ├── Line chart with threshold lines (critical / dry / high)
+│       └── Rachio watering event overlay (teal shaded regions)
+│
+├── TAB: Sensors (sensor.fill)
+│   ├── Filter chips: All / Critical / Dry / OK / High / [Group]
+│   ├── Sensor rows: status dot, name, moisture %, temp, bar, timestamp, predictive dry date
+│   └── Sensor Detail
+│       ├── Header: moisture %, temperature, status badge, last updated
+│       ├── Subscription expiry countdown (if known)
+│       ├── Linked zone + quick-run button
+│       └── Settings: alias, zone picker, auto-water toggle, hide-from-graphs toggle
+│
+├── TAB: Zones (drop.fill)
+│   ├── Sort toolbar: Moisture / Name / Next Run / Last Watered / Weekly Watering
+│   ├── Zone cards: number badge, name, last watered, weekly schedule, run button
+│   └── Zone Detail
+│       ├── Header: zone number, name, status, last watered
+│       ├── Duration picker + Start / Stop buttons
+│       ├── Run history (recent watering events)
+│       ├── Schedules (all rules that include this zone)
+│       └── Linked sensors
+│
+└── TAB: Settings (gearshape.fill)
+    │
+    ├── ACCOUNT
+    │   ├── SenseCraft — API key/secret, test connection, sign out
+    │   └── Rachio — API key, device info, test connection, sign out
+    │
+    ├── CONFIGURATION
+    │   ├── Sensor-Zone Links — alias, zone picker, auto-water toggle, hide toggle
+    │   ├── Zone Groups — create / reorder / delete groups; assign sensors and zones
+    │   ├── Thresholds — High / Dry / Auto-water sliders; subscription alert days
+    │   ├── Notifications — see Notification Settings below
+    │   ├── Weather Integration — rain/freeze skip toggles and thresholds
+    │   └── Refresh Rate — foreground (15s–5m) + background (10m–1h)
+    │
+    ├── DISPLAY
+    │   ├── Appearance — theme, accent color, animations, haptics, icon style
+    │   ├── Units — temperature (°F/°C), moisture (% / raw), duration, volume
+    │   ├── Dashboard Layout — card order + visibility
+    │   └── Sensor Labels — primary / secondary / status indicator style
+    │
+    ├── DATA & PRIVACY
+    │   ├── Local Storage — usage stats, retention picker, clear old readings
+    │   ├── Export Data — CSV or JSON for a date range
+    │   ├── Backup & Restore — JSON backup of settings (excludes credentials and readings)
+    │   └── Privacy — permission statuses, data deletion
+    │
+    ├── SUPPORT
+    │   └── Diagnostics — API latency test, history test, copy debug log, reset graph cache
+    │
+    └── RESET
+        ├── Reset SenseCraft / Reset Rachio — clears credentials
+        ├── Clear Sensor Links — removes zone links, aliases, auto-water settings
+        ├── Reset Settings — restores display preferences and thresholds to defaults
+        └── Reset Everything — full wipe, returns to onboarding
+```
+
+---
+
 ## Complete UI Reference
 
 ### Tab Bar (Bottom Navigation)
