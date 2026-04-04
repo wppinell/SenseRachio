@@ -17,6 +17,7 @@ struct RachioSenseApp: App {
             fatalError("Failed to create ModelContainer: \(error)")
         }
         BackgroundRefreshManager.shared.registerTasks()
+        BackgroundRefreshManager.shared.scheduleAppRefresh()
     }
 
     var body: some Scene {
@@ -31,9 +32,18 @@ struct RachioSenseApp: App {
         }
         .modelContainer(modelContainer)
         .onChange(of: scenePhase) { _, newPhase in
-            if newPhase == .active {
+            switch newPhase {
+            case .active:
                 // Clear stale key from removed 2w feature
                 UserDefaults.standard.removeObject(forKey: "lastExtendedFetchTimestamp")
+                // Request notification permission on every foreground (no-op if already granted/denied)
+                Task { await NotificationService.shared.requestPermission() }
+            case .background:
+                // Re-submit background refresh request each time we background
+                // (iOS may have dropped the pending request while the app was active)
+                BackgroundRefreshManager.shared.scheduleAppRefresh()
+            default:
+                break
             }
         }
     }
