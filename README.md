@@ -488,6 +488,13 @@ Per-sensor settings:
 |---------|---------|-------------|
 | **Zone Finished** | Off | Fires when a zone's last-watered timestamp changes (polling-based) |
 | **Scheduled Run Soon** | Off | Fires when a zone's next run is within 2 hours |
+| **Zone Skipped** | On | Fires when Rachio's Weather Intelligence skips a run (rain, freeze, or wind) |
+
+**Service Alerts**
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| **Service Disconnected** | On | Fires when SenseCraft or Rachio hasn't been reachable for 2+ hours (6h cooldown) |
 
 **Summaries**
 
@@ -503,7 +510,7 @@ Per-sensor settings:
 | **Quiet Hours** | Off | Suppresses all alerts between configured hours (default 10 PM – 7 AM) |
 
 **How notifications fire:**
-Background refresh runs every ~15–60 min (iOS controls actual cadence). Each cycle: saves new sensor readings → evaluates predictive alerts → evaluates threshold alerts → checks sensor offline → checks zone changes → checks daily/weekly summaries. Cooldown is tracked per sensor per alert type in UserDefaults so a dry sensor never spams across multiple refresh cycles.
+Background refresh runs every ~15–60 min (iOS controls actual cadence). Each cycle: saves new sensor readings → evaluates predictive alerts → evaluates threshold alerts → checks sensor offline → checks zone changes → checks zone skips → checks service connectivity → checks daily/weekly summaries. Cooldown is tracked per sensor per alert type in UserDefaults so a dry sensor never spams across multiple refresh cycles. Service disconnected alerts use per-service last-success timestamps and only fire if a prior successful connection has been recorded (no false alarms on first launch).
 
 #### Weather Integration
 
@@ -1024,10 +1031,12 @@ MIT License — see LICENSE file
 - Sensor offline detection: fires after 3+ hours without a reading (12h cooldown)
 - Zone ran detection: polling-based via Rachio `lastWateredDate` comparison
 - Upcoming run alert: fires when next scheduled run is within 2 hours
+- Zone Skipped alert: detects Rachio Weather Intelligence skip events within the last 30 minutes and reports reason (rain / freeze / wind) — 23h cooldown per skip ID
+- Service Disconnected alert: fires when SenseCraft or Rachio hasn't been reached for 2+ hours; only fires if a prior successful connection exists; 6h cooldown per service
 - Daily summary: fires once per day after configured time
 - Weekly report: fires once per week on configured day
-- All toggles in Settings → Notifications now wired to actual code
-- New settings: Alert window picker, Cooldown picker
+- All toggles in Settings → Notifications wired to actual code
+- Settings: Alert window picker, Cooldown picker, Zone Skipped toggle (default on), Service Alerts toggle (default on)
 
 **Code Quality (Claude Refactor):**
 - `RachioAPI` converted from `final class` + manual locking to Swift `actor`

@@ -173,6 +173,8 @@ When Rachio skips a scheduled run due to weather, display:
 - How much rain was expected vs. received
 - Whether the skip was appropriate given actual sensor readings
 
+**Note:** Zone Skip *notifications* are now implemented (fires within 30 min of the skip event, includes skip reason). What remains here is a dedicated UI view showing skip history with rain expectation vs. actual moisture response — a deeper transparency layer beyond the push alert.
+
 ### iOS Widget Suite
 | Widget | Size | Content |
 |--------|------|---------|
