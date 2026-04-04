@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 
 struct GraphsView: View {
     @EnvironmentObject private var appState: AppState
@@ -46,13 +47,7 @@ struct GraphsView: View {
             }
             .navigationTitle("Graphs")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    if viewModel.isLoading {
-                        ProgressView().controlSize(.small)
-                    }
-                }
-            }
+
             .task {
                 await viewModel.load(modelContext: modelContext)
             }
@@ -65,7 +60,28 @@ struct GraphsView: View {
         }
     }
     
-    // MARK: - Background Refresh
+    // MARK: - Actions
+    
+    private func resetSensors(_ euis: [String]) {
+        // Delete readings for these sensors
+        for eui in euis {
+            let readings = (try? modelContext.fetch(FetchDescriptor<SensorReading>())) ?? []
+            for reading in readings where reading.eui == eui {
+                modelContext.delete(reading)
+            }
+        }
+        try? modelContext.save()
+        
+        // Clear from view model
+        for eui in euis {
+            viewModel.readingsByEUI[eui] = nil
+        }
+        
+        // Fetch only these sensors
+        Task {
+            await viewModel.fetchSensors(euis: euis, modelContext: modelContext)
+        }
+    }
     
     // MARK: - Graphs Content
 
@@ -90,9 +106,11 @@ struct GraphsView: View {
                                 sensors: viewModel.sensors(linkedTo: zone.id),
                                 readingsByEUI: viewModel.readingsByEUI,
                                 wateringEvents: events(forZoneName: zone.name),
-                                                                chartPeriod: $chartPeriod,
+                                chartPeriod: $chartPeriod,
                                 isFetching: viewModel.isFetchingData,
-                                syncFlash: $syncFlash
+                                fetchingEUIs: viewModel.fetchingEUIs,
+                                syncFlash: $syncFlash,
+                                onResetSensors: resetSensors
                             )
                         }
                         if !viewModel.unlinkedSensors.isEmpty {
@@ -101,9 +119,11 @@ struct GraphsView: View {
                                 sensors: viewModel.unlinkedSensors,
                                 readingsByEUI: viewModel.readingsByEUI,
                                 wateringEvents: [],
-                                                                chartPeriod: $chartPeriod,
+                                chartPeriod: $chartPeriod,
                                 isFetching: viewModel.isFetchingData,
-                                syncFlash: $syncFlash
+                                fetchingEUIs: viewModel.fetchingEUIs,
+                                syncFlash: $syncFlash,
+                                onResetSensors: resetSensors
                             )
                         }
                     } else {
@@ -115,10 +135,12 @@ struct GraphsView: View {
                                     title: group.name,
                                     sensors: groupSensors,
                                     readingsByEUI: viewModel.readingsByEUI,
-                                wateringEvents: events(forSensors: groupSensors),
-                                                                        chartPeriod: $chartPeriod,
-                                isFetching: viewModel.isFetchingData,
-                                syncFlash: $syncFlash
+                                    wateringEvents: events(forSensors: groupSensors),
+                                    chartPeriod: $chartPeriod,
+                                    isFetching: viewModel.isFetchingData,
+                                    fetchingEUIs: viewModel.fetchingEUIs,
+                                    syncFlash: $syncFlash,
+                                    onResetSensors: resetSensors
                                 )
                             }
                         }
@@ -129,9 +151,11 @@ struct GraphsView: View {
                                 sensors: viewModel.sensors(linkedTo: zone.id),
                                 readingsByEUI: viewModel.readingsByEUI,
                                 wateringEvents: events(forZoneName: zone.name),
-                                                                chartPeriod: $chartPeriod,
+                                chartPeriod: $chartPeriod,
                                 isFetching: viewModel.isFetchingData,
-                                syncFlash: $syncFlash
+                                fetchingEUIs: viewModel.fetchingEUIs,
+                                syncFlash: $syncFlash,
+                                onResetSensors: resetSensors
                             )
                         }
                         if !viewModel.unlinkedSensors.isEmpty {
@@ -140,9 +164,11 @@ struct GraphsView: View {
                                 sensors: viewModel.unlinkedSensors,
                                 readingsByEUI: viewModel.readingsByEUI,
                                 wateringEvents: [],
-                                                                chartPeriod: $chartPeriod,
+                                chartPeriod: $chartPeriod,
                                 isFetching: viewModel.isFetchingData,
-                                syncFlash: $syncFlash
+                                fetchingEUIs: viewModel.fetchingEUIs,
+                                syncFlash: $syncFlash,
+                                onResetSensors: resetSensors
                             )
                         }
                     }

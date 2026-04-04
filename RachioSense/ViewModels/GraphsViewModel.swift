@@ -14,8 +14,13 @@ final class GraphsViewModel {
     var wateringEvents: [RachioWateringEvent] = []
     var isLoading: Bool = false
     var isFetchingData: Bool = false  // true while network fetch in-progress
+    var fetchingEUIs: Set<String> = []  // EUIs currently being fetched
     var errorMessage: String? = nil
     private(set) var lastFetchedAt: Date? = nil
+    
+    func clearLastFetchedAt() {
+        lastFetchedAt = nil
+    }
 
     /// True if no fetch has happened yet, or last fetch was > 10 minutes ago
     var isDataStale: Bool {
@@ -104,13 +109,18 @@ final class GraphsViewModel {
         isLoading = false
 
 
-        // Then fetch fresh data in background — update graphs when done
+        // Then fetch fresh data in background — non-cancellable so tab switches don't kill it
         isFetchingData = true
 
-        // Detached so tab switches don't cancel the fetch mid-flight
-        let fetchTask = Task.detached(priority: .background) {
-            await GraphDataPrefetcher.shared.fetchIfNeeded(modelContext: modelContext)
+        // Capture modelContext for the closure
+        let mc = modelContext
+        
+        // Create a non-cancellable task that will complete even if this function is cancelled
+        let fetchTask = Task.detached { @MainActor in
+            await GraphDataPrefetcher.shared.fetchIfNeeded(modelContext: mc)
         }
+        
+        // Wait for it to complete
         await fetchTask.value
 
         if let devices = try? await RachioAPI.shared.getDevices(),
@@ -120,6 +130,32 @@ final class GraphsViewModel {
         reloadReadings(modelContext: modelContext)
         lastFetchedAt = Date()
         isFetchingData = false
+    }
+    
+    /// Fetch only specific sensors (7 days of history)
+    @MainActor
+    func fetchSensors(euis: [String], modelContext: ModelContext) async {
+        // Mark these EUIs as fetching
+        for eui in euis {
+            fetchingEUIs.insert(eui)
+        }
+        
+        for eui in euis {
+            do {
+                let history = try await SenseCraftAPI.shared.fetchHistory(eui: eui, hours: 168)
+                for reading in history {
+                    guard let moisture = reading.moisture else { continue }
+                    let t = reading.timestamp
+                    modelContext.insert(SensorReading(eui: eui, moisture: moisture, tempC: reading.tempC ?? 0, recordedAt: t))
+                }
+            } catch {
+                logger.error("Failed to fetch \(eui): \(error.localizedDescription)")
+            }
+            fetchingEUIs.remove(eui)
+        }
+        
+        _ = try? modelContext.save()
+        reloadReadings(modelContext: modelContext)
     }
     
     /// Force refresh - fetches last 24h of fresh data (lightweight)

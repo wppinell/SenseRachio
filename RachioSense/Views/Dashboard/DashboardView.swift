@@ -327,7 +327,7 @@ struct DashboardView: View {
             // Filter to today and tomorrow only
             let cal = Calendar.current
             let filtered = allSkips.filter { skip in
-                cal.isDateInToday(skip.skipDate) || cal.isDateInTomorrow(skip.skipDate) || cal.isDateInYesterday(skip.skipDate)
+                cal.isDateInToday(skip.skipDate) || cal.isDateInTomorrow(skip.skipDate)
             }
             await MainActor.run { rainSkips = filtered }
         } catch {

@@ -217,25 +217,24 @@ final class SenseCraftAPI {
     ///   - hours: Number of hours to fetch (default 168 = 7 days)
     /// - Returns: Array of historical readings sorted by time ascending
     func fetchHistory(eui: String, hours: Int = 168) async throws -> [HistoricalReading] {
-        // If > 24h, fetch in 24h chunks to work around API result limits
+        // If > 24h, fetch in 24h chunks with delays to avoid rate limits
         if hours > 24 {
             var allReadings: [HistoricalReading] = []
             let chunkHours = 24
             let chunks = Int(ceil(Double(hours) / Double(chunkHours)))
             let nowMs = Int(Date().timeIntervalSince1970 * 1000)
 
-            // Fetch chunks sequentially with aggressive retry
             for i in 0..<chunks {
-                if i > 0 { try? await Task.sleep(nanoseconds: 1_000_000_000) } // 1s between chunks
+                if i > 0 { try? await Task.sleep(nanoseconds: 200_000_000) } // 0.2s between chunks
                 let chunkEndMs   = nowMs - (i * chunkHours * 3600 * 1000)
                 let chunkStartMs = chunkEndMs - (chunkHours * 3600 * 1000)
                 var chunk: [HistoricalReading] = []
-                for attempt in 1...5 {
+                for attempt in 1...3 {
                     do {
                         chunk = try await fetchHistoryChunk(eui: eui, startMs: chunkStartMs, endMs: chunkEndMs)
                         break
                     } catch SenseCraftAPIError.httpError(429) {
-                        let wait: UInt64 = UInt64(attempt) * 10_000_000_000
+                        let wait: UInt64 = UInt64(attempt) * 3_000_000_000 // 3s, 6s, 9s
                         try? await Task.sleep(nanoseconds: wait)
                     } catch {
                         break
@@ -294,8 +293,16 @@ final class SenseCraftAPI {
             }
         }
         
-        let isoFormatter = ISO8601DateFormatter()
-        isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        // Try with fractional seconds first, fall back to without
+        let isoFormatterFractional = ISO8601DateFormatter()
+        isoFormatterFractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        
+        let isoFormatterBasic = ISO8601DateFormatter()
+        isoFormatterBasic.formatOptions = [.withInternetDateTime]
+        
+        func parseDate(_ str: String) -> Date? {
+            isoFormatterFractional.date(from: str) ?? isoFormatterBasic.date(from: str)
+        }
         
         // Helper to extract [[value, timestamp]] series at index
         func series(at index: Int?) -> [[Any]] {
@@ -306,6 +313,8 @@ final class SenseCraftAPI {
         
         let moistureSeries = series(at: measurementIdToIndex[moistureMeasurementID])
         let tempSeries     = series(at: measurementIdToIndex[tempMeasurementID])
+        
+
         
         // Build temp lookup keyed by ISO timestamp string
         var tempByTimestamp: [String: Double] = [:]
@@ -323,7 +332,7 @@ final class SenseCraftAPI {
             guard point.count >= 2,
                   let moisture = point[0] as? Double,
                   let tsString = point[1] as? String,
-                  let date = isoFormatter.date(from: tsString) else { continue }
+                  let date = parseDate(tsString) else { continue }
             
             readings.append(HistoricalReading(
                 timestamp: date,

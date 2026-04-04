@@ -12,13 +12,14 @@ struct DiagnosticsView: View {
     @State private var rachioLatency: String = "—"
     @State private var isMeasuringLatency = false
     @State private var copySuccess = false
-    @State private var showResetCacheConfirm = false
-    @State private var resetCacheSuccess = false
+
 
     // History API test
     @State private var historyTestResult: String = ""
     @State private var isTestingHistory = false
     @State private var historyTestStatus: HistoryTestStatus = .idle
+    
+
 
     enum HistoryTestStatus {
         case idle, running, success, failure
@@ -235,31 +236,11 @@ struct DiagnosticsView: View {
                         Spacer()
                     }
                 }
-                Button(role: .destructive) {
-                    showResetCacheConfirm = true
-                } label: {
-                    HStack {
-                        Spacer()
-                        if resetCacheSuccess {
-                            Label("Cache Cleared!", systemImage: "checkmark")
-                                .foregroundStyle(DS.Color.online)
-                        } else {
-                            Label("Reset Graph Cache", systemImage: "arrow.clockwise")
-                        }
-                        Spacer()
-                    }
-                }
-            } footer: { Text("Reset Graph Cache clears stored readings and fetch timestamps. Historical data will be re-fetched from SenseCAP on next app open. Sensor configs, links, and aliases are preserved.") }
+            }
         }
         .listStyle(.insetGrouped)
         .navigationTitle("Diagnostics")
         .navigationBarTitleDisplayMode(.inline)
-        .confirmationDialog("Reset Graph Cache?", isPresented: $showResetCacheConfirm, titleVisibility: .visible) {
-            Button("Clear & Re-fetch", role: .destructive) { resetGraphCache() }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("All stored readings will be deleted. Historical data will be re-fetched from SenseCAP. Sensor configs, links, and aliases are not affected.")
-        }
     }
 
     private var appVersion: String {
@@ -353,23 +334,6 @@ struct DiagnosticsView: View {
             _ = try? await RachioAPI.shared.getDevices()
             let ms = Int(Date().timeIntervalSince(start) * 1000)
             await MainActor.run { rachioLatency = "\(ms) ms" }
-        }
-    }
-
-    private func resetGraphCache() {
-        // Delete all stored readings
-        for reading in readings {
-            modelContext.delete(reading)
-        }
-        _ = try? modelContext.save()
-
-        // Clear prefetcher timestamps so next open does full 7-day fetch
-        UserDefaults.standard.removeObject(forKey: "lastIncrementalFetchTimestamp")
-
-        HapticFeedback.notification(.success)
-        resetCacheSuccess = true
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-            resetCacheSuccess = false
         }
     }
 

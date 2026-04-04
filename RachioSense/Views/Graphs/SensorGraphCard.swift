@@ -9,7 +9,13 @@ struct SensorGraphCard: View {
     @Binding var chartPeriod: String
     var showPeriodPicker: Bool = true
     var isFetching: Bool = false
+    var fetchingEUIs: Set<String> = []
     @Binding var syncFlash: Bool
+    var onResetSensors: (([String]) -> Void)? = nil  // callback with EUIs to reset
+    
+    private var isCardFetching: Bool {
+        sensors.contains { fetchingEUIs.contains($0.eui) }
+    }
     @AppStorage(AppStorageKey.graphYMin) private var graphYMin = 15.0
     @AppStorage(AppStorageKey.graphYMax) private var graphYMax = 45.0
     @AppStorage(AppStorageKey.autoWaterThreshold) private var autoWaterThreshold: Double = 20
@@ -52,11 +58,12 @@ struct SensorGraphCard: View {
     }
 
     private var allPoints: [DataPoint] {
-        sensors.enumerated().flatMap { index, sensor in
+        let points = sensors.enumerated().flatMap { index, sensor in
             readings(for: sensor.eui).map { date, moisture in
                 DataPoint(date: date, moisture: moisture, sensorName: sensor.displayName, colorIndex: index)
             }
         }
+        return points
     }
 
     private func cutoffDate(for period: String) -> Date {
@@ -85,12 +92,31 @@ struct SensorGraphCard: View {
         Date().addingTimeInterval(-Double(periodDays) * 86400)
     }
 
-    private var xAxisStride: Calendar.Component { .day }
-
-    private var xAxisCount: Int { periodDays }
+    private var xAxisValues: [Date] {
+        let start = periodStart
+        let end = Date()
+        var values: [Date] = []
+        
+        let strideHours: Int
+        switch renderPeriod {
+        case "1d": strideHours = 4
+        case "2d": strideHours = 6
+        default: strideHours = 24
+        }
+        
+        var current = start
+        while current <= end {
+            values.append(current)
+            current = current.addingTimeInterval(Double(strideHours) * 3600)
+        }
+        return values
+    }
 
     private var xAxisFormat: Date.FormatStyle {
-        .dateTime.month(.defaultDigits).day()
+        switch renderPeriod {
+        case "1d", "2d": return .dateTime.hour()
+        default: return .dateTime.month(.defaultDigits).day()
+        }
     }
 
     /// Evenly spaced Y axis ticks within the configured range
@@ -124,6 +150,25 @@ struct SensorGraphCard: View {
     private var visibleWateringEvents: [RachioWateringEvent] {
         let cutoff = cutoffDate(for: renderPeriod)
         return wateringEvents.filter { $0.startDate >= cutoff && $0.startDate <= Date() }
+    }
+
+    private var dayRanges: [(start: Date, end: Date)] {
+        let calendar = Calendar.current
+        let start = periodStart
+        let end = Date()
+        var ranges: [(start: Date, end: Date)] = []
+        
+        var dayStart = calendar.startOfDay(for: start)
+        
+        while dayStart < end {
+            let dayEnd = calendar.date(byAdding: .day, value: 1, to: dayStart) ?? dayStart
+            let rangeStart = max(dayStart, start)
+            let rangeEnd = min(dayEnd, end)
+            ranges.append((rangeStart, rangeEnd))
+            dayStart = dayEnd
+        }
+        
+        return ranges
     }
 
     private var hasData: Bool {
@@ -161,6 +206,12 @@ struct SensorGraphCard: View {
             DispatchQueue.main.async { renderPeriod = newVal }
         }
         .animation(.easeInOut(duration: 0.2), value: syncFlash)
+        .onLongPressGesture(minimumDuration: 0.5) {
+            // Long-press on card: reset data for these sensors
+            let euis = sensors.map { $0.eui }
+            onResetSensors?(euis)
+            HapticFeedback.notification(.warning)
+        }
     }
 
     // MARK: - Subviews
@@ -171,6 +222,11 @@ struct SensorGraphCard: View {
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(DS.Color.textPrimary)
                 .lineLimit(1)
+            if isCardFetching {
+                ProgressView()
+                    .controlSize(.small)
+                    .padding(.leading, 6)
+            }
             Spacer()
             if showPeriodPicker {
                 periodPicker
@@ -227,7 +283,18 @@ struct SensorGraphCard: View {
                     series: .value("Sensor", point.sensorName)
                 )
                 .foregroundStyle(color(for: point.colorIndex))
-                .interpolationMethod(.linear)
+                .interpolationMethod(.catmullRom)
+            }
+
+            // Alternating day backgrounds
+            ForEach(Array(dayRanges.enumerated()), id: \.offset) { index, range in
+                if index % 2 == 1 {
+                    RectangleMark(
+                        xStart: .value("Start", range.start),
+                        xEnd: .value("End", range.end)
+                    )
+                    .foregroundStyle(DS.Color.textTertiary.opacity(0.08))
+                }
             }
 
             // Watering event markers — dotted vertical lines + fill for long runs
@@ -269,7 +336,7 @@ struct SensorGraphCard: View {
         .id(renderPeriod)
         .chartXScale(domain: periodStart...Date())
         .chartXAxis {
-            AxisMarks(values: .stride(by: xAxisStride)) { value in
+            AxisMarks(values: xAxisValues) { value in
                 AxisValueLabel(format: xAxisFormat, centered: true)
                 AxisGridLine()
             }

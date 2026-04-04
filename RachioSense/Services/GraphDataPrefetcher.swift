@@ -180,25 +180,27 @@ final class GraphDataPrefetcher {
             existingByEUI[r.eui, default: []].insert(r.recordedAt)
         }
 
-        // Short fetches (<=24h = 1 chunk each): run all sensors concurrently — fast, no 429 risk
-        // Long fetches (>24h = multiple chunks): run sequentially with delays to avoid 429s
+        // Fetch sensors in parallel with limited concurrency (3 at a time)
         var allResults: [(String, [SenseCraftAPI.HistoricalReading])] = []
-        if hours <= 24 {
-            await withTaskGroup(of: (String, [SenseCraftAPI.HistoricalReading]).self) { group in
-                for sensor in visibleSensors {
+        await withTaskGroup(of: (String, [SenseCraftAPI.HistoricalReading]).self) { group in
+            var running = 0
+            var index = 0
+            
+            while index < visibleSensors.count || running > 0 {
+                // Add tasks up to concurrency limit
+                while running < 3 && index < visibleSensors.count {
+                    let sensor = visibleSensors[index]
                     group.addTask { await self.fetchWithRetry(sensor: sensor, hours: hours) }
+                    running += 1
+                    index += 1
                 }
-                for await result in group {
+                
+                // Wait for one to complete
+                if let result = await group.next() {
                     logger.info("✓ \(result.0.suffix(4)): \(result.1.count) readings")
                     allResults.append(result)
+                    running -= 1
                 }
-            }
-        } else {
-            for (i, sensor) in visibleSensors.enumerated() {
-                if i > 0 { try? await Task.sleep(nanoseconds: 2_000_000_000) } // 2s between sensors
-                let result = await fetchWithRetry(sensor: sensor, hours: hours)
-                allResults.append(result)
-                logger.info("Sensor \(i+1)/\(visibleSensors.count): \(sensor.eui.suffix(4)) = \(result.1.count) readings")
             }
         }
         logger.debug(" Total fetched: \(allResults.map { $0.1.count }.reduce(0, +)) readings across \(allResults.count) sensors")

@@ -634,10 +634,9 @@ final class RachioAPI {
                   let eventDateMs = dict["eventDate"] as? Int,
                   let id = dict["id"] as? String else { return nil }
             
-            // Match weather intelligence skips OR schedule status skips
+            // Match weather intelligence skips only (not seasonal adjustments)
             let isWeatherSkip = type == "WEATHER_INTELLIGENCE" && (subType.contains("SKIP") || subType.contains("DELAY"))
-            let isScheduleSkip = type == "SCHEDULE_STATUS" && subType.contains("SKIP")
-            guard isWeatherSkip || isScheduleSkip else { return nil }
+            guard isWeatherSkip else { return nil }
 
             let summary = dict["summary"] as? String ?? "Schedule skipped"
 
