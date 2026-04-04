@@ -14,6 +14,10 @@ struct NotificationsSettingsView: View {
     @AppStorage(AppStorageKey.zoneStartedEnabled) private var zoneStarted = false
     @AppStorage(AppStorageKey.zoneStoppedEnabled) private var zoneStopped = false
     @AppStorage(AppStorageKey.scheduleRunEnabled) private var scheduleRun = false
+    @AppStorage(AppStorageKey.zoneSkipEnabled) private var zoneSkip = true
+
+    // Service Alerts
+    @AppStorage(AppStorageKey.serviceAlertsEnabled) private var serviceAlerts = true
 
     // Summaries
     @AppStorage(AppStorageKey.dailySummaryEnabled) private var dailySummary = false
@@ -101,7 +105,17 @@ struct NotificationsSettingsView: View {
                     .tint(DS.Color.accent)
                 Toggle("Scheduled Run", isOn: $scheduleRun)
                     .tint(DS.Color.accent)
+                Toggle("Zone Skipped", isOn: $zoneSkip)
+                    .tint(DS.Color.warning)
             } header: { Text("Zone Activity") }
+             footer: { Text("Zone Skipped fires when Rachio's Weather Intelligence skips a scheduled run due to rain, freeze, or wind.") }
+
+            // Service Alerts
+            Section {
+                Toggle("Service Disconnected", isOn: $serviceAlerts)
+                    .tint(DS.Color.error)
+            } header: { Text("Service Alerts") }
+             footer: { Text("Alerts you when RachioSense hasn't been able to reach SenseCraft or Rachio for over 2 hours. Useful for catching credential expiry or network outages.") }
 
             // Summaries
             Section {

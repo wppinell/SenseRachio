@@ -260,6 +260,14 @@ final class BackgroundRefreshManager: Sendable {
 
             Self.logger.info("Fetched \(fetchedReadings.count) readings in background")
 
+            // Track SenseCraft connectivity for service-disconnected alerts
+            let visibleSensorCount = sensorConfigs.filter { !$0.isHidden }.count
+            if !fetchedReadings.isEmpty {
+                UserDefaults.standard.set(Date(), forKey: "notif_sensecraft_last_success")
+            } else if visibleSensorCount > 0 {
+                Self.logger.warning("SenseCraft returned 0 readings for \(visibleSensorCount) visible sensors")
+            }
+
             // Save first so prediction math and summary see the latest values
             for data in fetchedReadings {
                 await actor.insertReading(eui: data.eui, moisture: data.moisture, tempC: data.tempC)
@@ -299,12 +307,20 @@ final class BackgroundRefreshManager: Sendable {
             let fetchedEUIs = Set(fetchedReadings.map { $0.eui })
             await checkSensorOffline(fetchedEUIs: fetchedEUIs, allConfigs: sensorConfigs, actor: actor)
 
-            // --- Zone notifications (only if any zone toggle is enabled) ---
+            // --- Zone notifications + skip alerts (only if any zone toggle is enabled) ---
             let wantZone = (UserDefaults.standard.object(forKey: AppStorageKey.zoneStoppedEnabled) as? Bool ?? false)
                         || (UserDefaults.standard.object(forKey: AppStorageKey.scheduleRunEnabled)  as? Bool ?? false)
-            if wantZone, KeychainService.shared.load(forKey: KeychainKey.rachioAPIKey) != nil {
-                await checkZoneNotifications()
+                        || (UserDefaults.standard.object(forKey: AppStorageKey.zoneSkipEnabled)     as? Bool ?? true)
+            if KeychainService.shared.load(forKey: KeychainKey.rachioAPIKey) != nil {
+                if wantZone {
+                    await checkZoneNotifications()
+                }
+                // checkZoneNotifications records Rachio success; always check skips if key exists
+                await checkZoneSkips()
             }
+
+            // --- Service disconnected alerts ---
+            checkServiceAlerts(visibleSensorCount: visibleSensorCount)
 
             // --- Daily summary & weekly report ---
             let summary = await actor.sensorSummary(dryThreshold: effectiveDry, criticalThreshold: effectiveCritical)
@@ -349,6 +365,7 @@ final class BackgroundRefreshManager: Sendable {
     private func checkZoneNotifications() async {
         do {
             let devices = try await RachioAPI.shared.getDevices()
+            UserDefaults.standard.set(Date(), forKey: "notif_rachio_last_success")
             let wantRan      = UserDefaults.standard.object(forKey: AppStorageKey.zoneStoppedEnabled)  as? Bool ?? false
             let wantUpcoming = UserDefaults.standard.object(forKey: AppStorageKey.scheduleRunEnabled)   as? Bool ?? false
 
@@ -381,6 +398,67 @@ final class BackgroundRefreshManager: Sendable {
             }
         } catch {
             Self.logger.error("Zone notification check failed: \(error.localizedDescription)")
+        }
+    }
+
+    // MARK: - Zone Skip Alerts
+
+    private func checkZoneSkips() async {
+        guard UserDefaults.standard.object(forKey: AppStorageKey.zoneSkipEnabled) as? Bool ?? true else { return }
+        do {
+            let devices = try await RachioAPI.shared.getDevices()
+            UserDefaults.standard.set(Date(), forKey: "notif_rachio_last_success")
+
+            for device in devices {
+                let skips = try await RachioAPI.shared.getRainSkips(deviceId: device.id, days: 1)
+                for skip in skips {
+                    // Only alert on skips that are recent (within the last 2 refresh cycles ~30min)
+                    let ageMinutes = Date().timeIntervalSince(skip.skipDate) / 60
+                    guard ageMinutes >= 0 && ageMinutes <= 30 else { continue }
+                    Self.logger.info("Zone skip alert: \(skip.scheduleName) — \(skip.reason)")
+                    NotificationService.shared.scheduleZoneSkipAlert(
+                        skipId: skip.id,
+                        scheduleName: skip.scheduleName,
+                        reason: skip.reason
+                    )
+                }
+            }
+        } catch {
+            Self.logger.error("Zone skip check failed: \(error.localizedDescription)")
+        }
+    }
+
+    // MARK: - Service Disconnected Alerts
+
+    /// Fires if SenseCraft or Rachio hasn't had a successful connection in 2+ hours.
+    /// This catches both auth failures and sustained network outages.
+    private func checkServiceAlerts(visibleSensorCount: Int) {
+        guard UserDefaults.standard.object(forKey: AppStorageKey.serviceAlertsEnabled) as? Bool ?? true else { return }
+
+        let thresholdHours = 2.0
+        let now = Date()
+
+        // SenseCraft — only check if we have configured sensors
+        if visibleSensorCount > 0 {
+            if let lastSuccess = UserDefaults.standard.object(forKey: "notif_sensecraft_last_success") as? Date {
+                let hoursOffline = now.timeIntervalSince(lastSuccess) / 3600
+                if hoursOffline >= thresholdHours {
+                    Self.logger.warning("SenseCraft offline for \(hoursOffline, format: .fixed(precision: 1))h")
+                    NotificationService.shared.scheduleServiceAlert(service: "SenseCraft", hoursOffline: hoursOffline)
+                }
+            }
+            // If no lastSuccess key at all, don't alert — app may just be newly installed
+        }
+
+        // Rachio — only check if API key is configured
+        if KeychainService.shared.load(forKey: KeychainKey.rachioAPIKey) != nil {
+            if let lastSuccess = UserDefaults.standard.object(forKey: "notif_rachio_last_success") as? Date {
+                let hoursOffline = now.timeIntervalSince(lastSuccess) / 3600
+                if hoursOffline >= thresholdHours {
+                    Self.logger.warning("Rachio offline for \(hoursOffline, format: .fixed(precision: 1))h")
+                    NotificationService.shared.scheduleServiceAlert(service: "Rachio", hoursOffline: hoursOffline)
+                }
+            }
         }
     }
 

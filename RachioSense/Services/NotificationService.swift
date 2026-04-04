@@ -130,6 +130,46 @@ final class NotificationService {
         }
     }
 
+    // MARK: - Service Disconnected Alert
+
+    /// Fires when SenseCraft or Rachio hasn't connected successfully in `hoursOffline` hours.
+    /// Uses a fixed 6h cooldown so it doesn't repeat every refresh while the outage persists.
+    func scheduleServiceAlert(service: String, hoursOffline: Double) {
+        let enabled = UserDefaults.standard.object(forKey: AppStorageKey.serviceAlertsEnabled) as? Bool ?? true
+        guard enabled else { return }
+        guard !isQuietHours() else { return }
+        guard !isOnCooldown(eui: service, type: "service-down", cooldownHours: 6) else { return }
+
+        let content = UNMutableNotificationContent()
+        content.title = "\(service) Disconnected"
+        content.body  = "RachioSense hasn't been able to reach \(service) in over \(Int(hoursOffline.rounded()))h. Check your credentials and network."
+        content.sound = .default
+
+        send(identifier: "service-down-\(service.lowercased())", content: content) {
+            self.recordSent(eui: service, type: "service-down")
+        }
+    }
+
+    // MARK: - Zone Skip Alert
+
+    /// Fires when Rachio skips a scheduled zone run due to weather intelligence (rain, freeze, wind).
+    func scheduleZoneSkipAlert(skipId: String, scheduleName: String, reason: String) {
+        let enabled = UserDefaults.standard.object(forKey: AppStorageKey.zoneSkipEnabled) as? Bool ?? true
+        guard enabled else { return }
+        guard !isQuietHours() else { return }
+        // Use skipId as the cooldown key so each unique skip event fires at most once
+        guard !isOnCooldown(eui: skipId, type: "zone-skip", cooldownHours: 23) else { return }
+
+        let content = UNMutableNotificationContent()
+        content.title = "Zone Run Skipped"
+        content.body  = "\"\(scheduleName)\" was skipped — \(reason)."
+        content.sound = .default
+
+        send(identifier: "zone-skip-\(skipId)", content: content) {
+            self.recordSent(eui: skipId, type: "zone-skip")
+        }
+    }
+
     // MARK: - Sensor Offline Alert
 
     func scheduleSensorOfflineAlert(eui: String, sensorName: String, hoursOffline: Double) {

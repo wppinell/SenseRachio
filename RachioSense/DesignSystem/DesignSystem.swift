@@ -115,7 +115,9 @@ enum AppStorageKey {
     static let sensorOfflineEnabled    = "notif_sensor_offline"
     static let zoneStartedEnabled      = "notif_zone_started"
     static let zoneStoppedEnabled      = "notif_zone_stopped"
+    static let zoneSkipEnabled         = "notif_zone_skip"
     static let scheduleRunEnabled      = "notif_schedule_run"
+    static let serviceAlertsEnabled    = "notif_service_alerts"
     static let dailySummaryEnabled     = "notif_daily_summary"
     static let dailySummaryHour        = "notif_daily_summary_hour"    // Int 0-23
     static let dailySummaryMinute      = "notif_daily_summary_minute"
