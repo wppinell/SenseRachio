@@ -65,13 +65,14 @@ final class SensorsViewModel {
                 }
             }
 
-            // Use shared cache to prevent duplicate API calls
+            // Use shared cache to prevent duplicate API calls; filter hidden sensors here
             let hiddenEuis = Set(updatedConfigs.filter { $0.isHiddenFromGraphs }.map { $0.eui })
-        let cachedReadings = await LiveReadingsCache.shared.getReadings(hiddenEuis: hiddenEuis)
-            
+            let allCachedReadings = await LiveReadingsCache.shared.getReadings()
+            let cachedReadings = allCachedReadings.filter { !hiddenEuis.contains($0.key) }
+
             // Merge: use cached/fresh reading if available, fall back to stored
             var newReadings: [String: SensorReading] = storedLatest
-            
+
             for (eui, reading) in cachedReadings {
                 // Also persist to SwiftData
                 modelContext.insert(SensorReading(

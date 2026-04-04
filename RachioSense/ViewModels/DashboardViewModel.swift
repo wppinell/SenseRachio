@@ -76,7 +76,8 @@ final class DashboardViewModel {
             return
         }
         let hiddenEuis = Set((try? modelContext.fetch(FetchDescriptor<SensorConfig>()))?.filter { $0.isHiddenFromGraphs }.map { $0.eui } ?? [])
-        let cachedReadings = await LiveReadingsCache.shared.getReadings(hiddenEuis: hiddenEuis)
+        let allCachedReadings = await LiveReadingsCache.shared.getReadings()
+        let cachedReadings = allCachedReadings.filter { !hiddenEuis.contains($0.key) }
         if !cachedReadings.isEmpty {
             var merged = storedLatest
             for (eui, reading) in cachedReadings { merged[eui] = reading }

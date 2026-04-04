@@ -10,7 +10,7 @@ Issues found in this pass. Severity ratings: **Bug** = can misbehave at runtime;
 
 ---
 
-### Bug — `RachioAPI` rate-limit reset timestamp fails to parse when fractional seconds are present
+### ✅ Bug — `RachioAPI` rate-limit reset timestamp fails to parse when fractional seconds are present — FIXED
 **File:** `Services/RachioAPI.swift` (~line 286)
 **Severity:** Bug — silent API abuse when Rachio returns a 429
 
@@ -31,7 +31,7 @@ let resetDate = formatter1.date(from: resetStr) ?? formatter2.date(from: resetSt
 
 ---
 
-### Bug — `LiveReadingsCache.getReadings(hiddenEuis:)` ignores `hiddenEuis` for coalesced callers
+### ✅ Bug — `LiveReadingsCache.getReadings(hiddenEuis:)` ignores `hiddenEuis` for coalesced callers — FIXED
 **File:** `Services/LiveReadingsCache.swift` (~line 43-47)
 **Severity:** Logic bug — callers that coalesce onto an in-flight fetch receive results filtered by the *first* caller's hidden sensor set, not their own.
 
@@ -43,7 +43,7 @@ In the current codebase, all callers pass the same hidden set so this is not vis
 
 ---
 
-### Bug — `checkZoneSkips()` records Rachio success timestamp before all API calls complete
+### ✅ Bug — `checkZoneSkips()` records Rachio success timestamp before all API calls complete — FIXED
 **File:** `Background/BackgroundRefreshManager.swift` (~line 410)
 **Severity:** Minor logic — service-disconnect alert timer resets even on partial failures
 
@@ -53,7 +53,7 @@ In the current codebase, all callers pass the same hidden set so this is not vis
 
 ---
 
-### Fragile — `LocationManager` timeout task is not stored or cancelled
+### ✅ Fragile — `LocationManager` timeout task is not stored or cancelled — FIXED
 **File:** `Services/LocationManager.swift` (~line 103)
 **Severity:** Fragile — correct in current usage; crashes under a specific edge case
 
@@ -70,7 +70,7 @@ locationTimeoutTask = nil
 
 ---
 
-### Design — `SensorSummaryData.driest` uses a named tuple
+### ✅ Design — `SensorSummaryData.driest` uses a named tuple — FIXED
 **File:** `Background/BackgroundRefreshManager.swift` (top-level struct)
 **Severity:** Design — named tuples cannot conform to protocols; blocks future Sendable verification and testing
 
@@ -87,7 +87,7 @@ struct DriestSensor: Sendable {
 
 ---
 
-### Design — `checkZoneNotifications()` and `checkZoneSkips()` both call `getDevices()` independently
+### ✅ Design — `checkZoneNotifications()` and `checkZoneSkips()` both call `getDevices()` independently — FIXED
 **File:** `Background/BackgroundRefreshManager.swift`
 **Severity:** Design — wasteful even with caching; second call adds a cache-lookup hop and a potential 5-minute stale data gap
 

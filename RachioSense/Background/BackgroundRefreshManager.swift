@@ -5,13 +5,19 @@ import os
 
 // MARK: - Sensor Summary Data
 
+struct DriestSensor: Sendable {
+    let name: String
+    let eui: String
+    let moisture: Double
+}
+
 struct SensorSummaryData: Sendable {
     let healthy: Int
     let low: Int
     let critical: Int
     let totalMoisture: Double
     let totalCount: Int
-    let driest: (name: String, eui: String, moisture: Double)?
+    let driest: DriestSensor?
 }
 
 // MARK: - Background Model Actor
@@ -58,7 +64,7 @@ actor BackgroundModelActor {
         var healthy = 0, low = 0, critical = 0
         var totalMoisture = 0.0
         var count = 0
-        var driest: (name: String, eui: String, moisture: Double)? = nil
+        var driest: DriestSensor? = nil
 
         for config in configs where !config.isHiddenFromGraphs {
             let eui = config.eui   // capture as plain String — #Predicate can't use @Model properties directly
@@ -78,7 +84,7 @@ actor BackgroundModelActor {
             else                          { healthy += 1 }
 
             if driest == nil || m < driest!.moisture {
-                driest = (name: config.displayName, eui: config.eui, moisture: m)
+                driest = DriestSensor(name: config.displayName, eui: config.eui, moisture: m)
             }
         }
 
@@ -307,16 +313,16 @@ final class BackgroundRefreshManager: Sendable {
             let fetchedEUIs = Set(fetchedReadings.map { $0.eui })
             await checkSensorOffline(fetchedEUIs: fetchedEUIs, allConfigs: sensorConfigs, actor: actor)
 
-            // --- Zone notifications + skip alerts (only if any zone toggle is enabled) ---
-            let wantZone = (UserDefaults.standard.object(forKey: AppStorageKey.zoneStoppedEnabled) as? Bool ?? false)
-                        || (UserDefaults.standard.object(forKey: AppStorageKey.scheduleRunEnabled)  as? Bool ?? false)
-                        || (UserDefaults.standard.object(forKey: AppStorageKey.zoneSkipEnabled)     as? Bool ?? true)
+            // --- Zone notifications + skip alerts (single getDevices() call shared by both) ---
             if KeychainService.shared.load(forKey: KeychainKey.rachioAPIKey) != nil {
-                if wantZone {
-                    await checkZoneNotifications()
+                if let rachioDevices = try? await RachioAPI.shared.getDevices() {
+                    UserDefaults.standard.set(Date(), forKey: "notif_rachio_last_success")
+                    let wantRan      = UserDefaults.standard.object(forKey: AppStorageKey.zoneStoppedEnabled) as? Bool ?? false
+                    let wantUpcoming = UserDefaults.standard.object(forKey: AppStorageKey.scheduleRunEnabled)  as? Bool ?? false
+                    let wantSkip     = UserDefaults.standard.object(forKey: AppStorageKey.zoneSkipEnabled)     as? Bool ?? true
+                    if wantRan || wantUpcoming { await checkZoneNotifications(devices: rachioDevices) }
+                    if wantSkip               { await checkZoneSkips(devices: rachioDevices) }
                 }
-                // checkZoneNotifications records Rachio success; always check skips if key exists
-                await checkZoneSkips()
             }
 
             // --- Service disconnected alerts ---
@@ -362,53 +368,43 @@ final class BackgroundRefreshManager: Sendable {
 
     // MARK: - Zone Notifications (polling-based)
 
-    private func checkZoneNotifications() async {
-        do {
-            let devices = try await RachioAPI.shared.getDevices()
-            UserDefaults.standard.set(Date(), forKey: "notif_rachio_last_success")
-            let wantRan      = UserDefaults.standard.object(forKey: AppStorageKey.zoneStoppedEnabled)  as? Bool ?? false
-            let wantUpcoming = UserDefaults.standard.object(forKey: AppStorageKey.scheduleRunEnabled)   as? Bool ?? false
+    private func checkZoneNotifications(devices: [RachioDevice]) async {
+        let wantRan      = UserDefaults.standard.object(forKey: AppStorageKey.zoneStoppedEnabled)  as? Bool ?? false
+        let wantUpcoming = UserDefaults.standard.object(forKey: AppStorageKey.scheduleRunEnabled)   as? Bool ?? false
 
-            for device in devices {
-                for zone in device.zones where zone.enabled {
+        for device in devices {
+            for zone in device.zones where zone.enabled {
 
-                    // Zone ran: detect change in lastWateredDate
-                    if wantRan, let lastWatered = zone.lastWateredDate {
-                        let key = "notif_zone_last_watered_\(zone.id)"
-                        let stored = UserDefaults.standard.integer(forKey: key)
-                        if stored > 0 && lastWatered != stored {
-                            let durationMin = (zone.lastWateredDuration ?? 0) / 60
-                            Self.logger.info("Zone ran: \(zone.name) for \(durationMin)m")
-                            NotificationService.shared.scheduleZoneRanAlert(
-                                zoneId: zone.id, zoneName: zone.name, durationMinutes: durationMin)
-                        }
-                        UserDefaults.standard.set(lastWatered, forKey: key)
+                // Zone ran: detect change in lastWateredDate
+                if wantRan, let lastWatered = zone.lastWateredDate {
+                    let key = "notif_zone_last_watered_\(zone.id)"
+                    let stored = UserDefaults.standard.integer(forKey: key)
+                    if stored > 0 && lastWatered != stored {
+                        let durationMin = (zone.lastWateredDuration ?? 0) / 60
+                        Self.logger.info("Zone ran: \(zone.name) for \(durationMin)m")
+                        NotificationService.shared.scheduleZoneRanAlert(
+                            zoneId: zone.id, zoneName: zone.name, durationMinutes: durationMin)
                     }
+                    UserDefaults.standard.set(lastWatered, forKey: key)
+                }
 
-                    // Upcoming run: fire if next run is within 2 hours
-                    if wantUpcoming, let nextRun = device.nextRunDate(forZone: zone) {
-                        let minutesUntil = Int(nextRun.timeIntervalSinceNow / 60)
-                        if minutesUntil > 0 && minutesUntil <= 120 {
-                            Self.logger.info("Upcoming run: \(zone.name) in \(minutesUntil)m")
-                            NotificationService.shared.scheduleUpcomingRunAlert(
-                                zoneId: zone.id, zoneName: zone.name, minutesUntil: minutesUntil)
-                        }
+                // Upcoming run: fire if next run is within 2 hours
+                if wantUpcoming, let nextRun = device.nextRunDate(forZone: zone) {
+                    let minutesUntil = Int(nextRun.timeIntervalSinceNow / 60)
+                    if minutesUntil > 0 && minutesUntil <= 120 {
+                        Self.logger.info("Upcoming run: \(zone.name) in \(minutesUntil)m")
+                        NotificationService.shared.scheduleUpcomingRunAlert(
+                            zoneId: zone.id, zoneName: zone.name, minutesUntil: minutesUntil)
                     }
                 }
             }
-        } catch {
-            Self.logger.error("Zone notification check failed: \(error.localizedDescription)")
         }
     }
 
     // MARK: - Zone Skip Alerts
 
-    private func checkZoneSkips() async {
-        guard UserDefaults.standard.object(forKey: AppStorageKey.zoneSkipEnabled) as? Bool ?? true else { return }
+    private func checkZoneSkips(devices: [RachioDevice]) async {
         do {
-            let devices = try await RachioAPI.shared.getDevices()
-            UserDefaults.standard.set(Date(), forKey: "notif_rachio_last_success")
-
             for device in devices {
                 let skips = try await RachioAPI.shared.getRainSkips(deviceId: device.id, days: 1)
                 for skip in skips {

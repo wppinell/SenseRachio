@@ -15,6 +15,7 @@ final class LocationManager: NSObject, ObservableObject {
     
     private let locationManager = CLLocationManager()
     private var locationContinuation: CheckedContinuation<CLLocationCoordinate2D?, Never>?
+    private var locationTimeoutTask: Task<Void, Never>?
     
     // Default fallback (Phoenix, AZ) — can be overridden in Settings
     private let defaultLatitudeKey = "weather_latitude"
@@ -95,13 +96,18 @@ final class LocationManager: NSObject, ObservableObject {
     // MARK: - Private
     
     private func requestLocation() async -> CLLocationCoordinate2D? {
+        // Cancel any previous timeout task left over from a prior call
+        locationTimeoutTask?.cancel()
+        locationTimeoutTask = nil
+
         return await withCheckedContinuation { continuation in
             locationContinuation = continuation
             locationManager.requestLocation()
-            
-            // Timeout after 10 seconds
-            Task {
+
+            // Timeout after 10 seconds; store the task so success can cancel it
+            locationTimeoutTask = Task {
                 try? await Task.sleep(nanoseconds: 10_000_000_000)
+                guard !Task.isCancelled else { return }
                 if let cont = locationContinuation {
                     locationContinuation = nil
                     cont.resume(returning: nil)
@@ -120,15 +126,19 @@ extension LocationManager: CLLocationManagerDelegate {
         Task { @MainActor in
             self.currentLocation = location.coordinate
             if let continuation = self.locationContinuation {
+                self.locationTimeoutTask?.cancel()
+                self.locationTimeoutTask = nil
                 self.locationContinuation = nil
                 continuation.resume(returning: location.coordinate)
             }
         }
     }
-    
+
     nonisolated func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
         Task { @MainActor in
             if let continuation = self.locationContinuation {
+                self.locationTimeoutTask?.cancel()
+                self.locationTimeoutTask = nil
                 self.locationContinuation = nil
                 continuation.resume(returning: nil)
             }

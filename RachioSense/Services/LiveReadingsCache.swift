@@ -28,9 +28,9 @@ actor LiveReadingsCache {
     // MARK: - Public API
     
     /// Get cached readings if fresh, otherwise fetch new ones.
-    /// Multiple callers will coalesce into a single fetch.
-    /// Note: hiddenEuis is passed in from the caller (main actor) to avoid ModelContext threading issues.
-    func getReadings(hiddenEuis: Set<String> = []) async -> [String: SensorReading] {
+    /// Multiple callers coalesce into a single fetch — all receive the full unfiltered result.
+    /// Filter out hidden sensors at the call site using the returned dictionary's keys.
+    func getReadings() async -> [String: SensorReading] {
         // Return cached if still valid
         if let lastFetch = lastFetchDate,
            Date().timeIntervalSince(lastFetch) < cacheTTL,
@@ -38,7 +38,7 @@ actor LiveReadingsCache {
             Self.logger.debug("Returning cached readings (\(self.readings.count) sensors)")
             return buildSensorReadings(from: readings)
         }
-        
+
         // If already fetching, wait for result
         if isFetching {
             Self.logger.debug("Fetch in progress, waiting...")
@@ -46,26 +46,26 @@ actor LiveReadingsCache {
                 fetchContinuations.append(continuation)
             }
         }
-        
+
         // Start new fetch
         isFetching = true
         Self.logger.info("Starting fresh sensor readings fetch")
-        
-        let newReadings = await performFetch(hiddenEuis: hiddenEuis)
-        
+
+        let newReadings = await performFetch()
+
         // Update cache
         readings = newReadings
         lastFetchDate = Date()
         isFetching = false
-        
+
         let result = buildSensorReadings(from: newReadings)
-        
+
         // Resume any waiting callers
         for continuation in fetchContinuations {
             continuation.resume(returning: result)
         }
         fetchContinuations.removeAll()
-        
+
         Self.logger.info("Fetch complete, \(newReadings.count) readings cached")
         return result
     }
@@ -83,20 +83,18 @@ actor LiveReadingsCache {
     
     // MARK: - Private
     
-    private func performFetch(hiddenEuis: Set<String>) async -> [String: CachedReading] {
+    private func performFetch() async -> [String: CachedReading] {
         guard KeychainService.shared.load(forKey: KeychainKey.senseCraftAPIKey) != nil else {
             Self.logger.warning("No SenseCraft credentials configured")
             return [:]
         }
-        
+
         do {
             let devices = try await SenseCraftAPI.shared.listDevices()
-            
-            // Fetch readings concurrently
+
+            // Fetch all readings concurrently — callers filter hidden sensors at their end
             let fetchedReadings: [CachedReading] = await withTaskGroup(of: CachedReading?.self) { group in
                 for device in devices {
-                    if hiddenEuis.contains(device.deviceEui) { continue }
-                    
                     group.addTask {
                         do {
                             let r = try await SenseCraftAPI.shared.fetchReading(eui: device.deviceEui)

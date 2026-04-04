@@ -283,13 +283,18 @@ actor RachioAPI {
             rateLimitRemaining = remain
         }
         if let resetStr = headerDict["x-ratelimit-reset"] as? String {
-            let formatter = ISO8601DateFormatter()
-            if let resetDate = formatter.date(from: resetStr) {
+            // Try both with and without fractional seconds — Rachio may use either format
+            let plainFormatter = ISO8601DateFormatter()
+            let fracFormatter  = ISO8601DateFormatter()
+            fracFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            if let resetDate = plainFormatter.date(from: resetStr) ?? fracFormatter.date(from: resetStr) {
                 if response.statusCode == 429 || rateLimitRemaining == 0 {
                     rateLimitedUntil = resetDate
                     let mins = Int(resetDate.timeIntervalSinceNow / 60)
                     logger.debug(" Rate limited until \(resetStr) (\(mins) min from now)")
                 }
+            } else {
+                logger.warning(" Could not parse x-ratelimit-reset value: \(resetStr)")
             }
         }
     }
