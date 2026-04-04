@@ -4,6 +4,73 @@ This file captures architectural suggestions and feature ideas specific to the c
 
 ---
 
+## 🔴 Fresh Code Review — April 2026 (Pass 2)
+
+Issues found in the second review pass.
+
+---
+
+### Bug — `WeatherAPI` crashes when daily forecast arrays have mismatched lengths
+**File:** `Services/WeatherAPI.swift` (~line 99)
+**Severity:** Bug — crash on malformed Open-Meteo response
+
+```swift
+for i in 0..<min(dates.count, 7) {
+    let precipAmount = precip[i] > 0 ? precip[i] : nil  // ← crash if precip.count < dates.count
+    daily.append(DailyForecast(
+        date: date,
+        highTemp: highs[i],   // ← crash if highs.count < dates.count
+        ...
+    ))
+}
+```
+
+The loop is bounded by `dates.count`, but the API could return shorter arrays for `highs`, `lows`, `codes`, or `precip` if the forecast data for a day is unavailable. Any index beyond the shorter array's bounds is a fatal crash.
+
+**Fix:**
+```swift
+for i in 0..<min(dates.count, highs.count, lows.count, codes.count, precip.count, 7) {
+```
+One-liner. Also consider logging a warning if the counts don't match so it's visible in diagnostics.
+
+---
+
+### Bug — `SensorsViewModel` inserts duplicate `SensorReading` rows on every foreground refresh
+**Files:** `ViewModels/SensorsViewModel.swift` (~line 78), `Services/LiveReadingsCache.swift`
+**Severity:** Bug — database bloat, corrupts graph accuracy over time
+
+Every call to `loadSensors()` that gets a cache hit inserts a fresh `SensorReading` into SwiftData with `recordedAt = cache.fetchedAt` (the time the cache was last populated, not the sensor's actual reading time). With a foreground refresh of 15s and a cache TTL of 60s, up to 4 identical records per sensor are inserted per minute — all with the same `recordedAt` value.
+
+Two compounding problems:
+1. Duplicate inserts: multiple `SensorReading` rows with identical `(eui, recordedAt)` accumulate in SwiftData, slowing graph queries and inflating local storage.
+2. Wrong timestamp: `LiveReadingsCache.CachedReading.fetchedAt` is `Date()` at fetch time, not the sensor's actual measurement time (SenseCraft's `/view_latest_telemetry_data` endpoint returns no timestamp — only the current value). This means live-path readings appear "now" even if the sensor's last update was 20 minutes ago.
+
+**Fix (duplicate inserts):** Before inserting, check if a reading for the same EUI within the last 60 seconds already exists:
+```swift
+let eui = reading.eui
+let cutoff = reading.recordedAt.addingTimeInterval(-60)
+let existingPredicate = #Predicate<SensorReading> { $0.eui == eui && $0.recordedAt >= cutoff }
+let existing = (try? modelContext.fetch(FetchDescriptor(predicate: existingPredicate)))?.first
+if existing == nil {
+    modelContext.insert(SensorReading(eui: reading.eui, moisture: reading.moisture,
+                                     tempC: reading.tempC, recordedAt: reading.recordedAt))
+}
+```
+
+**Fix (wrong timestamp):** If SenseCraft ever adds a timestamp field to the telemetry endpoint, thread it through `CachedReading` and `SensorReading`. For now, document the current behavior so future engineers don't assume SwiftData timestamps reflect sensor measurement times.
+
+---
+
+### Bug — "Zone Started" toggle is dead code; users enabling it see nothing
+**File:** `Views/Settings/Configuration/NotificationsSettingsView.swift` (~line 98), `DesignSystem/DesignSystem.swift`
+**Severity:** Bug — misleading UI; user enables a toggle that never fires
+
+`AppStorageKey.zoneStartedEnabled` is defined, surfaced in Settings as a toggle (default off), and included in the export backup — but `NotificationService` has no `scheduleZoneStartedAlert()` method and `BackgroundRefreshManager` never evaluates the toggle. A user who enables "Zone Started" receives no notifications.
+
+**Fix:** Either implement the alert (detect a zone transitioning to running state via Rachio's running status field in a future polling pass), or remove the toggle from the UI and key from `DesignSystem` until the feature is ready. Leaving it visible is the worse option — it erodes user trust in the notification system.
+
+---
+
 ## 🔴 Fresh Code Review — April 2026
 
 Issues found in this pass. Severity ratings: **Bug** = can misbehave at runtime; **Fragile** = correct today but breaks under plausible future conditions; **Design** = no current misbehavior, but creates maintenance risk.
