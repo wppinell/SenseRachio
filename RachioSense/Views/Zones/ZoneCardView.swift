@@ -49,6 +49,12 @@ struct ZoneCardView: View {
         return String(format: hours.truncatingRemainder(dividingBy: 1) == 0 ? "%.0fh" : "%.1fh", hours)
     }
 
+    /// Formats a duration in seconds: "<60s → Xs", otherwise delegates to formatMins.
+    static func formatDuration(_ seconds: Int) -> String {
+        if seconds < 60 { return "\(seconds)s" }
+        return formatMins(seconds / 60)
+    }
+
     private var weeklyFraction: Double {
         // Max ~10h/week = 600 mins
         return min(Double(weeklyMinutes) / 600.0, 1.0)
@@ -60,35 +66,31 @@ struct ZoneCardView: View {
         return formatDateOrTime(date)
     }
 
-    private var nextRunText: String {
-        guard let device else { return "—" }
+    /// Returns `(displayText, durationSeconds)` for next scheduled run.
+    private var nextRunInfo: (text: String, durationSec: Int?) {
+        guard let device else { return ("—", nil) }
         let schedules = device.schedules(forZoneId: zone.id)
-        guard !schedules.isEmpty else { return "—" }
+        guard !schedules.isEmpty else { return ("—", nil) }
 
         let now = Date()
         let calendar = Calendar.current
-        var candidates: [(date: Date, isFlex: Bool)] = []
+        var candidates: [(date: Date, isFlex: Bool, durationSec: Int)] = []
 
         for entry in schedules {
             let rule = entry.rule
             guard rule.enabled else { continue }
 
-            // FLEX schedules (no startHour) — Rachio computes the time internally,
-            // not exposed via public API. Estimate from lastWateredDate if available.
             let isFlex = rule.startHour == nil
-            var hour = rule.startHour ?? 12  // default to noon if no data
+            var hour = rule.startHour ?? 12
             var minute = rule.startMinute ?? 0
-            
+
             if isFlex, let lastMs = zone.lastWateredDate {
-                // Use last run time as estimate for FLEX schedule
                 let lastRun = Date(timeIntervalSince1970: Double(lastMs) / 1000)
                 hour = calendar.component(.hour, from: lastRun)
                 minute = calendar.component(.minute, from: lastRun)
             }
             let types = rule.scheduleJobTypes ?? []
 
-            // DAY_OF_WEEK_N → fixed weekday schedule
-            // Rachio: 0=Sun…6=Sat, Swift weekday: 1=Sun…7=Sat
             let fixedWeekdays = types.compactMap { t -> Int? in
                 guard t.hasPrefix("DAY_OF_WEEK_"), let n = Int(t.dropFirst("DAY_OF_WEEK_".count)) else { return nil }
                 return n + 1
@@ -102,7 +104,7 @@ struct ZoneCardView: View {
                     var comps = calendar.dateComponents([.year, .month, .day], from: candidate)
                     comps.hour = hour; comps.minute = minute; comps.second = 0
                     if let runDate = calendar.date(from: comps), runDate > now {
-                        candidates.append((runDate, isFlex))
+                        candidates.append((runDate, isFlex, entry.duration))
                         break
                     }
                 }
@@ -118,16 +120,39 @@ struct ZoneCardView: View {
                     var comps = calendar.dateComponents([.year, .month, .day], from: candidate)
                     comps.hour = hour; comps.minute = minute; comps.second = 0
                     if let runDate = calendar.date(from: comps), runDate > now {
-                        candidates.append((runDate, isFlex))
+                        candidates.append((runDate, isFlex, entry.duration))
                         break
                     }
                 }
             }
         }
 
-        guard let next = candidates.min(by: { $0.date < $1.date }) else { return "—" }
-        // Show time if today, otherwise show date — same for fixed and FLEX
-        return formatDateOrTime(next.date)
+        guard let next = candidates.min(by: { $0.date < $1.date }) else { return ("—", nil) }
+        var durationSec = next.durationSec
+        // Flex Daily schedules may report 0 duration — fall back to last run duration
+        if durationSec <= 0, let lastDur = zone.lastWateredDuration, lastDur > 0 {
+            durationSec = lastDur
+        }
+        let dateText = formatDateAndTime(next.date)
+        return (dateText, durationSec > 0 ? durationSec : nil)
+    }
+
+    private var nextRunText: String { nextRunInfo.text }
+
+    /// Today → time only ("6:00 PM"); other days → "Wed 6:00 PM".
+    private func formatDateAndTime(_ date: Date) -> String {
+        let calendar = Calendar.current
+        let timeFormatter = DateFormatter()
+        timeFormatter.dateFormat = "h:mm a"
+        let time = timeFormatter.string(from: date)
+
+        if calendar.isDateInToday(date) {
+            return time
+        } else {
+            let dayFormatter = DateFormatter()
+            dayFormatter.dateFormat = "EEE"
+            return "\(dayFormatter.string(from: date)) \(time)"
+        }
     }
 
     /// If date is today, show time only; otherwise show day/date without time
@@ -216,36 +241,41 @@ struct ZoneCardView: View {
                 }
                 .opacity(moisture != nil ? 1 : 0) // invisible but still takes space
 
-                // Last Run
-                HStack(spacing: DS.Spacing.sm) {
+                // Last
+                HStack(spacing: DS.Spacing.xs) {
                     Image(systemName: "clock")
                         .font(.caption)
                         .foregroundStyle(DS.Color.textSecondary)
-                    Text("Last Run")
+                    Text("Last")
                         .font(DS.Font.caption)
                         .foregroundStyle(DS.Color.textSecondary)
-                    Spacer()
                     Text(lastRunText)
                         .font(DS.Font.caption.weight(.medium))
                         .foregroundStyle(DS.Color.textPrimary)
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)
+                    Spacer(minLength: 0)
                 }
 
-                // Next Run
-                HStack(spacing: DS.Spacing.sm) {
+                // Next
+                HStack(spacing: DS.Spacing.xs) {
                     Image(systemName: "calendar")
                         .font(.caption)
                         .foregroundStyle(DS.Color.textSecondary)
-                    Text("Next Run")
+                    Text("Next")
                         .font(DS.Font.caption)
                         .foregroundStyle(DS.Color.textSecondary)
-                    Spacer()
-                    Text(nextRunText)
+                    Text(nextRunInfo.text)
                         .font(DS.Font.caption.weight(.medium))
                         .foregroundStyle(DS.Color.accent)
                         .lineLimit(1)
-                        .minimumScaleFactor(0.8)
+                    if let sec = nextRunInfo.durationSec {
+                        Text("· \(Self.formatDuration(sec))")
+                            .font(DS.Font.caption)
+                            .foregroundStyle(DS.Color.textSecondary)
+                            .lineLimit(1)
+                    }
+                    Spacer(minLength: 0)
                 }
             }
             .padding(.horizontal, DS.Spacing.md)
