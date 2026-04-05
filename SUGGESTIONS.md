@@ -80,19 +80,6 @@ Full code review, refactor, and bug fixes. Key changes:
 
 ## 🟡 Medium Priority — Architecture Improvements
 
-### SenseCraft WebSocket for Foreground Sensor Updates
-**Current state:** Sensor readings are fetched via REST polling on a timer. `LiveReadingsCache` has a 60-second TTL, so the app is at best 60 seconds behind whatever SenseCraft last received.
-**Context:** Sensors are configured to transmit every 10 minutes. SenseCraft buffers each transmission and exposes it over both REST and WebSocket.
-
-**Target:** Open a WebSocket connection to the SenseCraft API when the app enters the foreground, and close it on background. Each incoming packet updates `LiveReadingsCache` and triggers a UI refresh — so the reading appears within seconds of the sensor transmitting rather than waiting for the next poll cycle.
-
-**Scope:**
-- Foreground only — background refresh continues to use the existing REST + `BGAppRefreshTask` path
-- No change to `LiveReadingsCache` interface; WebSocket handler calls the same update path as the poller
-- Eliminates the scenario where the app is open but showing data that's up to a full sensor interval stale
-
-**Why medium and not low:** With 10-minute sensor intervals, the REST poller is adequate most of the time. But the WebSocket ensures you never miss a packet — if the poller fires between transmissions you get the cached value, whereas the WebSocket delivers the reading the instant it arrives regardless of timer alignment. Most noticeable when watching a zone run and waiting for the first moisture uptick.
-
 ### Implement Rachio Webhook → APNs Pipeline
 **Current state:** Zone running status is polled. There is no real-time event delivery.
 **Target architecture (already designed):**
