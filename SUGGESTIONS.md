@@ -80,6 +80,19 @@ Full code review, refactor, and bug fixes. Key changes:
 
 ## 🟡 Medium Priority — Architecture Improvements
 
+### SenseCraft WebSocket for Foreground Sensor Updates
+**Current state:** Sensor readings are fetched via REST polling on a timer. `LiveReadingsCache` has a 60-second TTL, so the app is at best 60 seconds behind whatever SenseCraft last received.
+**Context:** Sensors are configured to transmit every 10 minutes. SenseCraft buffers each transmission and exposes it over both REST and WebSocket.
+
+**Target:** Open a WebSocket connection to the SenseCraft API when the app enters the foreground, and close it on background. Each incoming packet updates `LiveReadingsCache` and triggers a UI refresh — so the reading appears within seconds of the sensor transmitting rather than waiting for the next poll cycle.
+
+**Scope:**
+- Foreground only — background refresh continues to use the existing REST + `BGAppRefreshTask` path
+- No change to `LiveReadingsCache` interface; WebSocket handler calls the same update path as the poller
+- Eliminates the scenario where the app is open but showing data that's up to a full sensor interval stale
+
+**Why medium and not low:** With 10-minute sensor intervals, the REST poller is adequate most of the time. But the WebSocket ensures you never miss a packet — if the poller fires between transmissions you get the cached value, whereas the WebSocket delivers the reading the instant it arrives regardless of timer alignment. Most noticeable when watching a zone run and waiting for the first moisture uptick.
+
 ### Implement Rachio Webhook → APNs Pipeline
 **Current state:** Zone running status is polled. There is no real-time event delivery.
 **Target architecture (already designed):**
@@ -116,6 +129,75 @@ Showing these would be the first app to make Flex Daily transparent to users.
 ### Deduplicate `moistureThreshold` Field
 **File:** `SensorConfig` SwiftData model
 The `moistureThreshold` field is kept for DB compatibility but is unused — global thresholds only. Add a migration to remove this field cleanly rather than carrying it indefinitely.
+
+### Build Out Zone Detail Screen
+**File:** `Views/Zones/ZoneDetailView.swift`
+The current Zone Detail screen is minimal — it shows a single "last watered" entry, non-tappable sensor rows, and no skip history. The goal is to make this a full zone command center.
+
+#### 1. Full Run History Card
+**Current state:** One row derived from `zone.lastWateredDate`. No duration, no history.
+**Target:** Fetch the last 10–20 watering events from `GET /device/{id}/event` (filtered by `zoneId`) and display them as a scrollable list.
+
+Each row should show:
+- Date + time of run (e.g. "Tue Apr 1 · 6:04 AM")
+- Duration in minutes (from `RachioWateringEvent.duration / 60`)
+- Skip any events where `isLongEnough == false` (< 5 min)
+
+`RachioWateringEvent` struct is already defined. `getWateringHistory(deviceId:days:)` already exists on `RachioAPI`. No new API work needed — just wire the data into a multi-row section.
+
+#### 2. Zone Skip History Card
+**Current state:** Not shown anywhere in Zone Detail.
+**Target:** Add a "Skipped Runs" section that lists recent rain/weather skips for this zone's schedule.
+
+Use `getRainSkips(deviceId:days:)` (already implemented). Filter skips by matching `scheduleName` against the zone's linked schedule. Each row:
+- Date of skip
+- Reason string (e.g. "Rain", "Freeze", "Wind")
+
+If no skips in last 30 days, show "No skips recently" placeholder. Cap at 5 rows; add "View all" if more.
+
+#### 3. Active Zone Live Timer
+**Current state:** Zone Detail shows "Running" badge but no elapsed/remaining time.
+**Target:** When `zone.isRunning == true`, replace the static badge with a live countdown or elapsed timer.
+
+If RachioSense started the run (duration known from the picker), show countdown: "3:42 remaining". Otherwise show elapsed time since `zone.lastWateredDate`. Use a `TimelineView(.periodic(from:by:))` or a 1-second `Timer` publisher so the display updates without re-fetching the API.
+
+Add a visible progress ring or bar under the zone header that drains as the run progresses (only when duration is known).
+
+#### 4. Tappable Linked Sensor Rows → Sensor Detail
+**Current state:** Linked sensor rows in Zone Detail are static labels. Tapping does nothing.
+**Target:** Make each linked sensor row a `NavigationLink` to `SensorDetailView` (or a new `SensorDetailView` if one doesn't exist yet).
+
+The destination screen should show:
+- Current moisture % + status badge
+- Temperature reading
+- 7-day sparkline chart (reuse `SensorGraphCard`)
+- Predicted dry/critical date if trending down
+- Sensor config (alias, thresholds, auto-water toggle)
+
+This gives the user a way to drill from zone → sensor → full history without going to the Sensors tab.
+
+#### 5. Inline Moisture Sparkline on Linked Sensor Rows
+**Current state:** Linked sensor rows show name + EUI + auto-water badge only.
+**Target:** Add a compact 48pt-wide sparkline (last 24h of readings) to the trailing edge of each linked sensor row, color-coded by current moisture status (green/yellow/red).
+
+Reuse the `SensorGraphCard` chart rendering logic but at thumbnail scale. Data is already in SwiftData — no new fetch needed.
+
+#### 6. Flex Daily Agronomic Parameters Card
+**Current state:** These fields exist in the Rachio API response but are not shown anywhere.
+**Target:** Add a collapsible "Flex Daily Settings" card at the bottom of Zone Detail (only visible when the zone's schedule type is `FLEX_DAILY`).
+
+Fields to display (all from `GET /device/{id}` → `zones[]`):
+| Label | Field | Display |
+|-------|-------|---------|
+| Root zone depth | `rootZoneDepth` | "X in" |
+| Soil water holding | `availableWater` | "X in/in" |
+| Allowed depletion | `managementAllowedDepletion` | "X%" |
+| Head efficiency | `efficiency` | "X%" |
+| Crop coefficient | `cropCoefficient` | "X" |
+
+Add a small info button next to the card header that shows a sheet explaining what each parameter means. This makes RachioSense the only app that exposes these values to users.
+
+**Note:** The top-level `RachioZone` struct already has these fields — just surface them in the UI.
 
 ---
 
