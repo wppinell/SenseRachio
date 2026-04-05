@@ -40,23 +40,12 @@ final class NotificationService {
         UserDefaults.standard.set(Date(), forKey: cooldownKey(eui: eui, type: type))
     }
 
-    // MARK: - Quiet Hours
-
-    private func isQuietHours() -> Bool {
-        guard UserDefaults.standard.bool(forKey: AppStorageKey.quietHoursEnabled) else { return false }
-        let startHour = UserDefaults.standard.integer(forKey: AppStorageKey.quietHoursStartHour)
-        let endHour   = UserDefaults.standard.integer(forKey: AppStorageKey.quietHoursEndHour)
-        let hour      = Calendar.current.component(.hour, from: Date())
-        // Handle overnight ranges (e.g. 22–7) and same-day ranges (e.g. 9–17)
-        return startHour <= endHour
-            ? (hour >= startHour && hour < endHour)
-            : (hour >= startHour || hour < endHour)
-    }
-
     // MARK: - Threshold Alert (already below dry / critical level)
 
     /// Fires when moisture has already crossed a threshold.
-    /// Respects: toggle, quiet hours, per-sensor cooldown.
+    /// Respects: toggle, per-sensor cooldown.
+    /// Interruption level: critical alerts are `.timeSensitive` (break through Focus/Sleep),
+    /// low alerts are `.active` (suppressed by Focus/Sleep).
     func scheduleThresholdAlert(
         eui: String,
         sensorName: String,
@@ -68,10 +57,6 @@ final class NotificationService {
         // Default true — treat a missing key as enabled
         let enabled = UserDefaults.standard.object(forKey: toggleKey) as? Bool ?? true
         guard enabled else { return }
-        guard !isQuietHours() else {
-            logger.info("Quiet hours — suppressing threshold alert for \(sensorName)")
-            return
-        }
 
         let type = isCritical ? "critical" : "low"
         guard !isOnCooldown(eui: eui, type: type, cooldownHours: effectiveCooldown()) else {
@@ -87,6 +72,7 @@ final class NotificationService {
             content.body = "\(sensorName) is at \(Int(moisture))%."
         }
         content.sound = .default
+        content.interruptionLevel = isCritical ? .timeSensitive : .active
 
         send(identifier: "moisture-\(type)-\(eui)", content: content) {
             self.recordSent(eui: eui, type: type)
@@ -97,6 +83,7 @@ final class NotificationService {
 
     /// Fires when the exponential decay model predicts the sensor will cross a threshold
     /// within the configured alert window (default 6 h).
+    /// Interruption level: predicted critical is `.timeSensitive`, predicted dry is `.active`.
     func schedulePredictiveAlert(
         eui: String,
         sensorName: String,
@@ -105,7 +92,6 @@ final class NotificationService {
     ) {
         let enabled = UserDefaults.standard.object(forKey: AppStorageKey.predictiveAlertEnabled) as? Bool ?? true
         guard enabled else { return }
-        guard !isQuietHours() else { return }
 
         let type = isCritical ? "predictive-critical" : "predictive-dry"
         guard !isOnCooldown(eui: eui, type: type, cooldownHours: effectiveCooldown()) else {
@@ -124,6 +110,7 @@ final class NotificationService {
         content.title = isCritical ? "⚠️ Going Critical Soon" : "Going Dry Soon"
         content.body  = "\(sensorName) will reach \(isCritical ? "critical" : "dry") in \(timeText)."
         content.sound = .default
+        content.interruptionLevel = isCritical ? .timeSensitive : .active
 
         send(identifier: "moisture-\(type)-\(eui)", content: content) {
             self.recordSent(eui: eui, type: type)
@@ -134,16 +121,17 @@ final class NotificationService {
 
     /// Fires when SenseCraft or Rachio hasn't connected successfully in `hoursOffline` hours.
     /// Uses a fixed 6h cooldown so it doesn't repeat every refresh while the outage persists.
+    /// Interruption level: `.active` — not urgent enough to break through Focus/Sleep.
     func scheduleServiceAlert(service: String, hoursOffline: Double) {
         let enabled = UserDefaults.standard.object(forKey: AppStorageKey.serviceAlertsEnabled) as? Bool ?? true
         guard enabled else { return }
-        guard !isQuietHours() else { return }
         guard !isOnCooldown(eui: service, type: "service-down", cooldownHours: 6) else { return }
 
         let content = UNMutableNotificationContent()
         content.title = "\(service) Disconnected"
         content.body  = "RachioSense hasn't been able to reach \(service) in over \(Int(hoursOffline.rounded()))h. Check your credentials and network."
         content.sound = .default
+        content.interruptionLevel = .active
 
         send(identifier: "service-down-\(service.lowercased())", content: content) {
             self.recordSent(eui: service, type: "service-down")
@@ -153,10 +141,10 @@ final class NotificationService {
     // MARK: - Zone Skip Alert
 
     /// Fires when Rachio skips a scheduled zone run due to weather intelligence (rain, freeze, wind).
+    /// Interruption level: `.active` — informational, suppressed during Focus/Sleep.
     func scheduleZoneSkipAlert(skipId: String, scheduleName: String, reason: String) {
         let enabled = UserDefaults.standard.object(forKey: AppStorageKey.zoneSkipEnabled) as? Bool ?? true
         guard enabled else { return }
-        guard !isQuietHours() else { return }
         // Use skipId as the cooldown key so each unique skip event fires at most once
         guard !isOnCooldown(eui: skipId, type: "zone-skip", cooldownHours: 23) else { return }
 
@@ -164,6 +152,7 @@ final class NotificationService {
         content.title = "Zone Run Skipped"
         content.body  = "\"\(scheduleName)\" was skipped — \(reason)."
         content.sound = .default
+        content.interruptionLevel = .active
 
         send(identifier: "zone-skip-\(skipId)", content: content) {
             self.recordSent(eui: skipId, type: "zone-skip")
@@ -172,10 +161,10 @@ final class NotificationService {
 
     // MARK: - Sensor Offline Alert
 
+    /// Interruption level: `.active` — not urgent enough to wake the user.
     func scheduleSensorOfflineAlert(eui: String, sensorName: String, hoursOffline: Double) {
         let enabled = UserDefaults.standard.object(forKey: AppStorageKey.sensorOfflineEnabled) as? Bool ?? true
         guard enabled else { return }
-        guard !isQuietHours() else { return }
         // Offline state persists; 12h cooldown prevents repeated alerts during outages
         guard !isOnCooldown(eui: eui, type: "offline", cooldownHours: 12) else { return }
 
@@ -183,6 +172,7 @@ final class NotificationService {
         content.title = "Sensor Offline"
         content.body  = "\(sensorName) hasn't reported in over \(Int(hoursOffline.rounded()))h."
         content.sound = .default
+        content.interruptionLevel = .active
 
         send(identifier: "sensor-offline-\(eui)", content: content) {
             self.recordSent(eui: eui, type: "offline")
@@ -193,6 +183,7 @@ final class NotificationService {
 
     /// Fires when a zone's lastWateredDate changed since the previous background refresh,
     /// indicating a watering cycle completed.
+    /// Interruption level: `.passive` — silent, appears in Notification Center without alerting.
     func scheduleZoneRanAlert(zoneId: String, zoneName: String, durationMinutes: Int) {
         let enabled = UserDefaults.standard.object(forKey: AppStorageKey.zoneStoppedEnabled) as? Bool ?? false
         guard enabled else { return }
@@ -204,6 +195,7 @@ final class NotificationService {
         let mins = durationMinutes == 1 ? "1 minute" : "\(durationMinutes) minutes"
         content.body  = "\"\(zoneName)\" ran for \(mins)."
         content.sound = .default
+        content.interruptionLevel = .passive
 
         send(identifier: "zone-ran-\(zoneId)", content: content) {
             self.recordSent(eui: zoneId, type: "zone-ran")
@@ -212,6 +204,7 @@ final class NotificationService {
 
     // MARK: - Upcoming Scheduled Run Alert
 
+    /// Interruption level: `.active` — normal priority, suppressed during Focus/Sleep.
     func scheduleUpcomingRunAlert(zoneId: String, zoneName: String, minutesUntil: Int) {
         let enabled = UserDefaults.standard.object(forKey: AppStorageKey.scheduleRunEnabled) as? Bool ?? false
         guard enabled else { return }
@@ -223,6 +216,7 @@ final class NotificationService {
         let timeText = minutesUntil < 5 ? "a few minutes" : "\(minutesUntil) minutes"
         content.body  = "\"\(zoneName)\" is scheduled to run in \(timeText)."
         content.sound = .default
+        content.interruptionLevel = .active
 
         send(identifier: "upcoming-run-\(zoneId)", content: content) {
             self.recordSent(eui: zoneId, type: "upcoming-run")
@@ -231,6 +225,7 @@ final class NotificationService {
 
     // MARK: - Daily Summary
 
+    /// Interruption level: `.passive` — silent, just lands in Notification Center.
     func sendDailySummary(healthy: Int, low: Int, critical: Int, driestName: String, driestMoisture: Double) {
         var parts: [String] = []
         if healthy > 0  { parts.append("\(healthy) healthy") }
@@ -241,6 +236,7 @@ final class NotificationService {
         content.title = "RachioSense Daily Summary"
         content.body  = "\(parts.joined(separator: " · ")) · driest: \(driestName) at \(Int(driestMoisture))%"
         content.sound = .default
+        content.interruptionLevel = .passive
 
         send(identifier: "daily-summary", content: content) {
             UserDefaults.standard.set(
@@ -252,6 +248,7 @@ final class NotificationService {
 
     // MARK: - Weekly Report
 
+    /// Interruption level: `.passive` — silent, just lands in Notification Center.
     func sendWeeklyReport(totalSensors: Int, avgMoisture: Double, lowCount: Int, criticalCount: Int) {
         let statusLine: String
         if criticalCount > 0 {
@@ -266,6 +263,7 @@ final class NotificationService {
         content.title = "RachioSense Weekly Report"
         content.body  = "\(statusLine). Average moisture: \(Int(avgMoisture.rounded()))%."
         content.sound = .default
+        content.interruptionLevel = .passive
 
         send(identifier: "weekly-report", content: content) {
             UserDefaults.standard.set(Date(), forKey: "notif_weekly_report_last_sent")

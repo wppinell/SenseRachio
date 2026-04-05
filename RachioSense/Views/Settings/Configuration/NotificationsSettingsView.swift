@@ -25,11 +25,6 @@ struct NotificationsSettingsView: View {
     @AppStorage(AppStorageKey.weeklyReportEnabled) private var weeklyReport = false
     @AppStorage(AppStorageKey.weeklyReportDay) private var weeklyReportDay = 1
 
-    // Quiet Hours
-    @AppStorage(AppStorageKey.quietHoursEnabled) private var quietHours = false
-    @AppStorage(AppStorageKey.quietHoursStartHour) private var quietStart = 22
-    @AppStorage(AppStorageKey.quietHoursEndHour) private var quietEnd = 7
-
     @State private var permissionStatus: UNAuthorizationStatus = .notDetermined
     @State private var showRequestPermission = false
 
@@ -157,41 +152,23 @@ struct NotificationsSettingsView: View {
                 }
             } header: { Text("Summaries") }
 
-            // Quiet Hours
+            // Focus / Sleep Info
             Section {
-                Toggle("Quiet Hours", isOn: $quietHours)
-                    .tint(DS.Color.accent)
-
-                if quietHours {
-                    HStack {
-                        Text("From")
-                            .foregroundStyle(DS.Color.textSecondary)
-                        Spacer()
-                        Picker("Start", selection: $quietStart) {
-                            ForEach(0..<24, id: \.self) { h in
-                                Text(hourLabel(h)).tag(h)
-                            }
-                        }
-                        .pickerStyle(.menu)
-                    }
-
-                    HStack {
-                        Text("Until")
-                            .foregroundStyle(DS.Color.textSecondary)
-                        Spacer()
-                        Picker("End", selection: $quietEnd) {
-                            ForEach(0..<24, id: \.self) { h in
-                                Text(hourLabel(h)).tag(h)
-                            }
-                        }
-                        .pickerStyle(.menu)
-                    }
+                Label {
+                    Text("RachioSense uses iOS Focus modes to manage quiet hours. Critical alerts are marked as Time Sensitive and can break through Sleep Focus if you allow them.")
+                        .font(DS.Font.caption)
+                        .foregroundStyle(DS.Color.textSecondary)
+                } icon: {
+                    Image(systemName: "moon.fill")
+                        .foregroundStyle(DS.Color.accent)
                 }
-            } header: { Text("Quiet Hours") }
-             footer: {
-                if quietHours {
-                    Text("Notifications will be silenced from \(hourLabel(quietStart)) to \(hourLabel(quietEnd)).")
+
+                Button("Open Focus Settings") {
+                    openSettings()
                 }
+            } header: { Text("Sleep & Focus") }
+              footer: {
+                Text("To configure which alerts break through Sleep, go to Settings → Focus → Sleep → Apps → RachioSense.")
             }
         }
         .listStyle(.insetGrouped)
@@ -209,15 +186,5 @@ struct NotificationsSettingsView: View {
         if let url = URL(string: UIApplication.openSettingsURLString) {
             UIApplication.shared.open(url)
         }
-    }
-
-    private func hourLabel(_ hour: Int) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "h a"
-        var comps = DateComponents()
-        comps.hour = hour
-        comps.minute = 0
-        let date = Calendar.current.date(from: comps) ?? Date()
-        return formatter.string(from: date)
     }
 }

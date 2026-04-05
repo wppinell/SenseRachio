@@ -123,8 +123,10 @@ enum AppStorageKey {
     static let dailySummaryMinute      = "notif_daily_summary_minute"
     static let weeklyReportEnabled     = "notif_weekly_report"
     static let weeklyReportDay         = "notif_weekly_report_day"     // Int 0=Sun
+    // Quiet Hours — DEPRECATED: now handled by iOS Focus/Sleep modes.
+    // Keys kept so migration or cleanup code can remove old UserDefaults entries.
     static let quietHoursEnabled       = "notif_quiet_hours"
-    static let quietHoursStartHour     = "notif_quiet_start_hour"      // Int
+    static let quietHoursStartHour     = "notif_quiet_start_hour"
     static let quietHoursEndHour       = "notif_quiet_end_hour"
     static let notificationCooldownHours  = "notif_cooldown_hours"      // Int default 4
     static let predictiveAlertEnabled     = "notif_predictive_alert"    // Bool default true

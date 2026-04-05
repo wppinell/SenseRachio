@@ -503,14 +503,19 @@ Per-sensor settings:
 | **Daily Summary** | Off | "N healthy · N low · driest: X at Y%" at a configured time each day |
 | **Weekly Report** | Off | Aggregate health summary on a configured day of the week |
 
-**Quiet Hours**
+**Sleep & Focus**
 
-| Setting | Default | Description |
-|---------|---------|-------------|
-| **Quiet Hours** | Off | Suppresses all alerts between configured hours (default 10 PM – 7 AM) |
+RachioSense uses iOS Focus modes (including Sleep Focus) to manage quiet hours. Critical moisture alerts are tagged as **Time Sensitive** and can break through Focus if the user allows them in Settings → Focus → Sleep → Apps → RachioSense. All other alerts (low moisture, summaries, zone activity) are suppressed automatically during active Focus modes.
 
 **How notifications fire:**
 Background refresh runs every ~15–60 min (iOS controls actual cadence). Each cycle: saves new sensor readings → evaluates predictive alerts → evaluates threshold alerts → checks sensor offline → checks zone changes → checks zone skips → checks service connectivity → checks daily/weekly summaries. Cooldown is tracked per sensor per alert type in UserDefaults so a dry sensor never spams across multiple refresh cycles. Service disconnected alerts use per-service last-success timestamps and only fire if a prior successful connection has been recorded (no false alarms on first launch).
+
+**Interruption levels:**
+| Level | Alert Types | Focus/Sleep Behavior |
+|-------|------------|---------------------|
+| **Time Sensitive** | Critical moisture, predicted critical | Breaks through Focus if user allows |
+| **Active** | Low moisture, predicted dry, service down, zone skip, sensor offline, upcoming run | Suppressed during Focus/Sleep |
+| **Passive** | Zone finished, daily summary, weekly report | Silent — appears in Notification Center only |
 
 #### Weather Integration
 
@@ -1041,7 +1046,7 @@ MIT License — see LICENSE file
 - Notification permission requested on first foreground launch
 - Background refresh properly submitted to iOS scheduler at launch and on each background transition
 - Per-sensor cooldown (default 4h) tracked in UserDefaults — no more repeated alerts while moisture stays low
-- Quiet hours respected across all alert types
+- iOS Focus/Sleep integration via `UNNotificationInterruptionLevel` (replaces custom quiet hours)
 - Critical vs. low severity distinction ("⚠️ Critical Soil Moisture" vs. "Soil Moisture Low")
 - Predictive alerts: exponential decay model predicts hours until critical/dry threshold; fires "⚠️ Going Critical Soon — ~3h" when within configurable window (default 6h)
 - Sensor offline detection: fires after 3+ hours without a reading (12h cooldown)
