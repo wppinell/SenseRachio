@@ -1019,6 +1019,22 @@ MIT License — see LICENSE file
 
 ## Changelog
 
+### 2026-04 (Bug Fixes — Code Review Passes 1 & 2)
+
+**Crashes fixed:**
+- `WeatherAPI`: daily forecast loop now bounded by all five array lengths (`dates`, `highs`, `lows`, `codes`, `precip`) — previously only `dates.count` was checked, causing index out-of-bounds on malformed Open-Meteo responses
+- `SensorsViewModel`: deduplicate `SensorReading` inserts before persisting live readings — previously each foreground refresh within the 60-second cache window inserted identical rows, causing database bloat and slow graph queries
+
+**Notification fixes:**
+- `RachioAPI`: rate-limit reset header now parsed with both plain and fractional-second ISO8601 formatters — previously a timestamp like `10:30:00.000Z` silently failed, leaving `rateLimitedUntil` unset
+- Removed dead "Zone Started" toggle from Notifications settings — the underlying alert was never implemented; toggle now gone from UI and backup export
+
+**Reliability fixes:**
+- `LiveReadingsCache`: `hiddenEuis` filter moved from the cache layer to call sites — coalesced callers previously received results filtered by the first caller's hidden set
+- `LocationManager`: timeout task is now stored and explicitly cancelled on success/failure — prevents a stale timeout from incorrectly resuming a future location request
+- `BackgroundRefreshManager`: `getDevices()` called once per background cycle; result passed to both zone-notification and zone-skip checks — eliminates a redundant API call and ensures the Rachio success timestamp is written only after all calls complete
+- `SensorSummaryData.driest` promoted from named tuple to `DriestSensor` struct
+
 ### 2026-04 (Claude Refactor)
 
 **Notification System (fully implemented):**

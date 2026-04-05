@@ -4,163 +4,23 @@ This file captures architectural suggestions and feature ideas specific to the c
 
 ---
 
-## 🔴 Fresh Code Review — April 2026 (Pass 2)
+## ✅ Code Reviews — April 2026 (All Resolved)
 
-Issues found in the second review pass.
+All 9 issues found across two review passes have been fixed. See git log for full details.
 
----
+| # | Severity | File | Issue | Status |
+|---|----------|------|-------|--------|
+| 1 | Bug | `RachioAPI.swift` | ISO8601 rate-limit reset parsing fails on fractional-second timestamps | ✅ Fixed |
+| 2 | Bug | `LiveReadingsCache.swift` | `hiddenEuis` silently ignored for coalesced callers | ✅ Fixed |
+| 3 | Bug | `BackgroundRefreshManager.swift` | Rachio success timestamp written before all API calls complete | ✅ Fixed |
+| 4 | Bug | `WeatherAPI.swift` | Daily forecast loop crashes if any array is shorter than `dates` | ✅ Fixed |
+| 5 | Bug | `SensorsViewModel.swift` | Duplicate `SensorReading` inserts on every foreground refresh | ✅ Fixed |
+| 6 | Bug | `NotificationsSettingsView.swift` | "Zone Started" toggle wired to no implementation | ✅ Removed |
+| 7 | Fragile | `LocationManager.swift` | Timeout task unretained — could resume wrong continuation | ✅ Fixed |
+| 8 | Design | `BackgroundRefreshManager.swift` | `getDevices()` called twice per cycle | ✅ Fixed |
+| 9 | Design | `BackgroundRefreshManager.swift` | `SensorSummaryData.driest` was a named tuple | ✅ Fixed |
 
-### ✅ Bug — `WeatherAPI` crashes when daily forecast arrays have mismatched lengths — FIXED
-**File:** `Services/WeatherAPI.swift` (~line 99)
-**Severity:** Bug — crash on malformed Open-Meteo response
-
-```swift
-for i in 0..<min(dates.count, 7) {
-    let precipAmount = precip[i] > 0 ? precip[i] : nil  // ← crash if precip.count < dates.count
-    daily.append(DailyForecast(
-        date: date,
-        highTemp: highs[i],   // ← crash if highs.count < dates.count
-        ...
-    ))
-}
-```
-
-The loop is bounded by `dates.count`, but the API could return shorter arrays for `highs`, `lows`, `codes`, or `precip` if the forecast data for a day is unavailable. Any index beyond the shorter array's bounds is a fatal crash.
-
-**Fix:**
-```swift
-for i in 0..<min(dates.count, highs.count, lows.count, codes.count, precip.count, 7) {
-```
-One-liner. Also consider logging a warning if the counts don't match so it's visible in diagnostics.
-
----
-
-### ✅ Bug — `SensorsViewModel` inserts duplicate `SensorReading` rows on every foreground refresh — FIXED
-**Files:** `ViewModels/SensorsViewModel.swift` (~line 78), `Services/LiveReadingsCache.swift`
-**Severity:** Bug — database bloat, corrupts graph accuracy over time
-
-Every call to `loadSensors()` that gets a cache hit inserts a fresh `SensorReading` into SwiftData with `recordedAt = cache.fetchedAt` (the time the cache was last populated, not the sensor's actual reading time). With a foreground refresh of 15s and a cache TTL of 60s, up to 4 identical records per sensor are inserted per minute — all with the same `recordedAt` value.
-
-Two compounding problems:
-1. Duplicate inserts: multiple `SensorReading` rows with identical `(eui, recordedAt)` accumulate in SwiftData, slowing graph queries and inflating local storage.
-2. Wrong timestamp: `LiveReadingsCache.CachedReading.fetchedAt` is `Date()` at fetch time, not the sensor's actual measurement time (SenseCraft's `/view_latest_telemetry_data` endpoint returns no timestamp — only the current value). This means live-path readings appear "now" even if the sensor's last update was 20 minutes ago.
-
-**Fix (duplicate inserts):** Before inserting, check if a reading for the same EUI within the last 60 seconds already exists:
-```swift
-let eui = reading.eui
-let cutoff = reading.recordedAt.addingTimeInterval(-60)
-let existingPredicate = #Predicate<SensorReading> { $0.eui == eui && $0.recordedAt >= cutoff }
-let existing = (try? modelContext.fetch(FetchDescriptor(predicate: existingPredicate)))?.first
-if existing == nil {
-    modelContext.insert(SensorReading(eui: reading.eui, moisture: reading.moisture,
-                                     tempC: reading.tempC, recordedAt: reading.recordedAt))
-}
-```
-
-**Fix (wrong timestamp):** If SenseCraft ever adds a timestamp field to the telemetry endpoint, thread it through `CachedReading` and `SensorReading`. For now, document the current behavior so future engineers don't assume SwiftData timestamps reflect sensor measurement times.
-
----
-
-### ✅ Bug — "Zone Started" toggle is dead code; users enabling it see nothing — FIXED
-**File:** `Views/Settings/Configuration/NotificationsSettingsView.swift` (~line 98), `DesignSystem/DesignSystem.swift`
-**Severity:** Bug — misleading UI; user enables a toggle that never fires
-
-`AppStorageKey.zoneStartedEnabled` is defined, surfaced in Settings as a toggle (default off), and included in the export backup — but `NotificationService` has no `scheduleZoneStartedAlert()` method and `BackgroundRefreshManager` never evaluates the toggle. A user who enables "Zone Started" receives no notifications.
-
-**Fix:** Either implement the alert (detect a zone transitioning to running state via Rachio's running status field in a future polling pass), or remove the toggle from the UI and key from `DesignSystem` until the feature is ready. Leaving it visible is the worse option — it erodes user trust in the notification system.
-
----
-
-## 🔴 Fresh Code Review — April 2026
-
-Issues found in this pass. Severity ratings: **Bug** = can misbehave at runtime; **Fragile** = correct today but breaks under plausible future conditions; **Design** = no current misbehavior, but creates maintenance risk.
-
----
-
-### ✅ Bug — `RachioAPI` rate-limit reset timestamp fails to parse when fractional seconds are present — FIXED
-**File:** `Services/RachioAPI.swift` (~line 286)
-**Severity:** Bug — silent API abuse when Rachio returns a 429
-
-`ISO8601DateFormatter()` with default options does not parse timestamps that include fractional seconds (e.g. `2026-04-04T10:30:00.000Z`). If Rachio sends this format, `formatter.date(from: resetStr)` returns `nil`, `rateLimitedUntil` is never set, and the app continues firing requests past the 429 limit.
-
-**Fix:**
-```swift
-let formatter = ISO8601DateFormatter()
-formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-```
-Or try both formatters in sequence:
-```swift
-let formatter1 = ISO8601DateFormatter()
-let formatter2 = ISO8601DateFormatter()
-formatter2.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-let resetDate = formatter1.date(from: resetStr) ?? formatter2.date(from: resetStr)
-```
-
----
-
-### ✅ Bug — `LiveReadingsCache.getReadings(hiddenEuis:)` ignores `hiddenEuis` for coalesced callers — FIXED
-**File:** `Services/LiveReadingsCache.swift` (~line 43-47)
-**Severity:** Logic bug — callers that coalesce onto an in-flight fetch receive results filtered by the *first* caller's hidden sensor set, not their own.
-
-When `isFetching == true`, a second caller appends a `CheckedContinuation` and awaits. When the fetch finishes, all waiting continuations get the same `result` computed from the first caller's `hiddenEuis`. The second caller's `hiddenEuis` argument is silently dropped.
-
-In the current codebase, all callers pass the same hidden set so this is not visible. But if any future caller uses a different set (e.g. a widget extension or diagnostics view), it will receive wrong data.
-
-**Fix:** Either ignore `hiddenEuis` entirely and filter at the call site, or store waiting continuations with their requested filter and apply per-caller filtering after the fetch resolves.
-
----
-
-### ✅ Bug — `checkZoneSkips()` records Rachio success timestamp before all API calls complete — FIXED
-**File:** `Background/BackgroundRefreshManager.swift` (~line 410)
-**Severity:** Minor logic — service-disconnect alert timer resets even on partial failures
-
-`notif_rachio_last_success` is written immediately after `getDevices()` succeeds, before `getRainSkips(deviceId:days:)` is called. If `getRainSkips` throws, the success timestamp was already updated, silencing any service-disconnect alert for the next 6 hours. This matters if rain-skip polling is flakier than device polling (e.g. a specific endpoint outage).
-
-**Fix:** Only write the success timestamp after all per-device Rachio calls in a given cycle complete without throwing.
-
----
-
-### ✅ Fragile — `LocationManager` timeout task is not stored or cancelled — FIXED
-**File:** `Services/LocationManager.swift` (~line 103)
-**Severity:** Fragile — correct in current usage; crashes under a specific edge case
-
-`requestLocation()` spawns an unstructured `Task` for the 10-second timeout but does not store a reference to it. If `requestLocation()` were called a second time before the first timeout fires (e.g. due to a retry added in the future), the first timeout task wakes up, sees a non-nil `locationContinuation` (pointing at the *new* request), nils it, and resumes the new continuation with `nil` — silently killing the second location request.
-
-**Fix:** Store the timeout task in a property and cancel it on success:
-```swift
-private var locationTimeoutTask: Task<Void, Never>?
-
-// in requestLocation(), on success path:
-locationTimeoutTask?.cancel()
-locationTimeoutTask = nil
-```
-
----
-
-### ✅ Design — `SensorSummaryData.driest` uses a named tuple — FIXED
-**File:** `Background/BackgroundRefreshManager.swift` (top-level struct)
-**Severity:** Design — named tuples cannot conform to protocols; blocks future Sendable verification and testing
-
-`let driest: (name: String, eui: String, moisture: Double)?` works fine today but will cause issues if you ever need to store it in a collection, pass it to a generic, or add Codable conformance. Swift's named-tuple Sendable inference is also under-specified.
-
-**Fix:** Replace with a small struct:
-```swift
-struct DriestSensor: Sendable {
-    let name: String
-    let eui: String
-    let moisture: Double
-}
-```
-
----
-
-### ✅ Design — `checkZoneNotifications()` and `checkZoneSkips()` both call `getDevices()` independently — FIXED
-**File:** `Background/BackgroundRefreshManager.swift`
-**Severity:** Design — wasteful even with caching; second call adds a cache-lookup hop and a potential 5-minute stale data gap
-
-Both methods hit `RachioAPI.shared.getDevices()`. The actor cache prevents double network I/O, but the two callers are logically coupled (both need the same device snapshot per refresh cycle) and should share a single result.
-
-**Fix:** Fetch devices once in `performRefresh()` and pass the result to both `checkZoneNotifications(devices:)` and `checkZoneSkips(devices:)` as a parameter. Eliminates the coupling and removes the redundant `notif_rachio_last_success` write in `checkZoneSkips()`.
+**Remaining known data-quality note:** `LiveReadingsCache` stores readings with `recordedAt = Date()` (fetch time), not the sensor's actual measurement time, because SenseCraft's `/view_latest_telemetry_data` endpoint returns no timestamp. Dedup fix (#5) prevents duplicate rows; the timestamp issue remains until SenseCraft exposes measurement timestamps.
 
 ---
 
